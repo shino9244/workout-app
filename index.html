@@ -27,7 +27,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       margin: 0;
       padding: 16px;
-      padding-bottom: 220px; /* 固定タイマーとコンテンツの重なりを防止 */
+      padding-bottom: 240px;
       background: var(--bg);
       color: var(--text);
       max-width: 650px;
@@ -96,7 +96,6 @@
     button.danger { background: #ef4444; color: #fff; }
     button.sm { padding: 4px 8px; font-size: 0.75rem; }
 
-    /* タイマー固定用スタイル */
     .fixed-timer-card {
       position: fixed;
       bottom: 0;
@@ -110,7 +109,6 @@
       z-index: 1000;
     }
 
-    /* タイマー＆ストップウォッチ */
     .timer-display {
       font-size: 1.5rem;
       font-weight: bold;
@@ -120,7 +118,6 @@
       color: var(--primary);
     }
 
-    /* 種目カードスタイル */
     .exercise-card {
       background: #f8fafc;
       border: 1px solid var(--border);
@@ -136,7 +133,6 @@
       margin-bottom: 8px;
     }
 
-    /* 過去記録読み込みエリア */
     .past-load-box {
       background: #ffffff;
       border: 1px dashed var(--border);
@@ -145,7 +141,6 @@
       margin-bottom: 12px;
     }
 
-    /* セット入力行 */
     .set-row {
       display: flex;
       align-items: center;
@@ -165,7 +160,7 @@
 <body>
 
   <h1>🏋️ 筋トレ記録 App Complete</h1>
-  <!-- データのバックアップ・復元ボタン -->
+
   <div class="card" style="text-align: center;">
     <h2>🔄 データの共有・バックアップ</h2>
     <div class="btn-group">
@@ -175,9 +170,9 @@
     </div>
   </div>
 
-  <!-- 1. カレンダー & 日別体重 -->
+  <!-- 1. カレンダー ＆ 日別記録基本情報 -->
   <div class="card">
-    <h2>📅 日付 ＆ 日別体重</h2>
+    <h2>📅 日付・コンディション・経過時間</h2>
     <div class="grid-2">
       <div>
         <label>日付選択</label>
@@ -188,14 +183,20 @@
         <input type="number" step="0.1" id="daily-weight" placeholder="例: 65.5" onchange="saveDailyWeight()">
       </div>
     </div>
+    <div style="margin-top: 4px;">
+      <label>本日のトレーニング経過時間</label>
+      <div style="display: flex; gap: 8px;">
+        <input type="text" id="daily-elapsed-time" placeholder="--:--:--" style="margin-bottom: 0;" onchange="saveDailyElapsedTime()">
+        <button class="secondary sm" style="flex: 0 0 auto;" onclick="applyStopwatchToDaily()">タイマーから取得</button>
+      </div>
+    </div>
   </div>
 
-  <!-- 2. トレーニング記録入力（複数種目対応） -->
+  <!-- 2. トレーニングメニュー記録 -->
   <div class="card" id="form-card">
-    <h2>📝 トレーニング記録入力</h2>
+    <h2>📝 本日のトレーニングメニュー</h2>
     <datalist id="exercise-history"></datalist>
 
-    <!-- 種目カードコンテナ -->
     <div id="exercises-container"></div>
 
     <div class="btn-group" style="margin-bottom: 12px;">
@@ -203,7 +204,7 @@
     </div>
 
     <div class="btn-group">
-      <button onclick="saveAllRecords()">この日の記録を保存</button>
+      <button onclick="saveAllRecords()">この日のメニュー・記録を保存</button>
     </div>
   </div>
 
@@ -223,17 +224,19 @@
   <div class="card fixed-timer-card">
     <h2 style="font-size: 0.95rem; margin-bottom: 4px;">⏱️ タイマー機能</h2>
     <div class="grid-2">
-      <!-- 経過時間（ストップウォッチ） -->
       <div style="text-align: center; border-right: 1px solid var(--border); padding-right: 8px;">
         <label>経過時間</label>
         <div class="timer-display" id="stopwatch-display">00:00:00</div>
+        <div class="btn-group" style="margin-bottom: 4px;">
+          <button class="sm secondary" onclick="adjustStopwatch(-300)">-5分</button>
+          <button class="sm secondary" onclick="adjustStopwatch(300)">+5分</button>
+        </div>
         <div class="btn-group">
           <button class="sm" onclick="startStopwatch()">開始</button>
           <button class="sm secondary" onclick="pauseStopwatch()">停止</button>
           <button class="sm danger" onclick="resetStopwatch()">リセット</button>
         </div>
       </div>
-      <!-- インターバルタイマー -->
       <div style="text-align: center; padding-left: 8px;">
         <label>インターバル</label>
         <div class="timer-display" id="interval-display">02:00</div>
@@ -254,17 +257,16 @@
     let volumeChartInstance = null;
     let exerciseCardCounter = 0;
 
-    // --- 初期表示処理 ---
     document.getElementById('workout-date').value = new Date().toISOString().substring(0, 10);
 
-    // --- 日付変更イベント ---
     function onDateChange() {
       loadDailyWeight();
+      loadDailyElapsedTime();
       loadDayRecords();
       updateExerciseDatalist();
     }
 
-    // --- 日別体重の管理 ---
+    // --- 日別体重・日別経過時間の管理 ---
     function saveDailyWeight() {
       const date = document.getElementById('workout-date').value;
       const weight = document.getElementById('daily-weight').value;
@@ -283,27 +285,70 @@
       document.getElementById('daily-weight').value = weights[date] || '';
     }
 
+    function saveDailyElapsedTime() {
+      const date = document.getElementById('workout-date').value;
+      const time = document.getElementById('daily-elapsed-time').value;
+      let times = JSON.parse(localStorage.getItem('daily_elapsed_times') || '{}');
+      if (time) {
+        times[date] = time;
+      } else {
+        delete times[date];
+      }
+      localStorage.setItem('daily_elapsed_times', JSON.stringify(times));
+    }
+
+    function loadDailyElapsedTime() {
+      const date = document.getElementById('workout-date').value;
+      const times = JSON.parse(localStorage.getItem('daily_elapsed_times') || '{}');
+      document.getElementById('daily-elapsed-time').value = times[date] || '';
+    }
+
+    function applyStopwatchToDaily() {
+      const time = getFormattedStopwatchTime();
+      document.getElementById('daily-elapsed-time').value = time;
+      saveDailyElapsedTime();
+    }
+
     // --- 経過時間（ストップウォッチ） ---
     let swTimer = null;
     let swSeconds = 0;
+
+    function renderStopwatchDisplay() {
+      const hrs = String(Math.floor(swSeconds / 3600)).padStart(2, '0');
+      const mins = String(Math.floor((swSeconds % 3600) / 60)).padStart(2, '0');
+      const secs = String(swSeconds % 60).padStart(2, '0');
+      document.getElementById('stopwatch-display').textContent = `${hrs}:${mins}:${secs}`;
+    }
+
     function startStopwatch() {
       if (swTimer) return;
       swTimer = setInterval(() => {
         swSeconds++;
-        const hrs = String(Math.floor(swSeconds / 3600)).padStart(2, '0');
-        const mins = String(Math.floor((swSeconds % 3600) / 60)).padStart(2, '0');
-        const secs = String(swSeconds % 60).padStart(2, '0');
-        document.getElementById('stopwatch-display').textContent = `${hrs}:${mins}:${secs}`;
+        renderStopwatchDisplay();
       }, 1000);
     }
+
     function pauseStopwatch() { clearInterval(swTimer); swTimer = null; }
+    
     function resetStopwatch() {
       pauseStopwatch();
       swSeconds = 0;
-      document.getElementById('stopwatch-display').textContent = "00:00:00";
+      renderStopwatchDisplay();
     }
 
-    // --- インターバルタイマー（初期設定: 120秒 = 2分） ---
+    function adjustStopwatch(sec) {
+      swSeconds = Math.max(0, swSeconds + sec);
+      renderStopwatchDisplay();
+    }
+
+    function getFormattedStopwatchTime() {
+      const hrs = String(Math.floor(swSeconds / 3600)).padStart(2, '0');
+      const mins = String(Math.floor((swSeconds % 3600) / 60)).padStart(2, '0');
+      const secs = String(swSeconds % 60).padStart(2, '0');
+      return `${hrs}:${mins}:${secs}`;
+    }
+
+    // --- インターバルタイマー ---
     let intTimer = null;
     let intDefaultSeconds = 120;
     let intRemainingSeconds = 120;
@@ -357,7 +402,6 @@
         <label>種目名</label>
         <input type="text" class="ex-name" placeholder="例: ベンチプレス" list="exercise-history" onchange="loadPastExerciseData('${cardId}')">
 
-        <!-- 過去記録の指定日付読み込み機能 -->
         <div class="past-load-box">
           <label>指定した過去の日付からこの種目の記録を読み込む</label>
           <div style="display: flex; gap: 8px;">
@@ -366,20 +410,18 @@
           </div>
         </div>
 
-        <div class="grid-2">
-          <div>
-            <label>主部位 (メイン・必須)</label>
-            <select class="ex-primary">
-              <option value="">選択してください</option>
-              <option value="胸">胸</option>
-              <option value="背中">背中</option>
-              <option value="肩">肩</option>
-              <option value="腕">腕</option>
-              <option value="脚">脚</option>
-              <option value="腹">腹</option>
-              <option value="お尻">お尻</option>
-            </select>
-          </div>
+        <div>
+          <label>主部位 (メイン・必須)</label>
+          <select class="ex-primary">
+            <option value="">選択してください</option>
+            <option value="胸">胸</option>
+            <option value="背中">背中</option>
+            <option value="肩">肩</option>
+            <option value="腕">腕</option>
+            <option value="脚">脚</option>
+            <option value="腹">腹</option>
+            <option value="お尻">お尻</option>
+          </select>
         </div>
 
         <label>副部位 (サブ・複数選択可)</label>
@@ -443,7 +485,6 @@
       });
     }
 
-    // --- カード内セット入力行操作 ---
     function addSetRowToCard(cardId, weight = '', reps = '') {
       const card = document.getElementById(cardId);
       if (!card) return;
@@ -467,7 +508,6 @@
       }
     }
 
-    // --- 過去ログから各カードへ自動読み込み（最新の1件） ---
     function loadPastExerciseData(cardId) {
       const card = document.getElementById(cardId);
       if (!card) return;
@@ -482,7 +522,6 @@
       }
     }
 
-    // --- 日付指定で過去ログを読み込む機能 ---
     function loadPastRecordByDate(cardId) {
       const card = document.getElementById(cardId);
       if (!card) return;
@@ -512,7 +551,6 @@
       }
     }
 
-    // --- レコード内容をカードに反映する共通処理 ---
     function applyRecordToCard(cardId, record) {
       const card = document.getElementById(cardId);
       if (!card) return;
@@ -532,7 +570,6 @@
       }
     }
 
-    // --- 日別記録の読み込みと自動表示 ---
     function loadDayRecords() {
       const selectedDate = document.getElementById('workout-date').value;
       const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
@@ -548,11 +585,13 @@
       }
     }
 
-    // --- 記録の一括保存 ---
     function saveAllRecords() {
       const date = document.getElementById('workout-date').value;
       const cards = document.querySelectorAll('#exercises-container .exercise-card');
+      const dailyElapsedTime = document.getElementById('daily-elapsed-time').value.trim();
       
+      saveDailyElapsedTime();
+
       let newDayRecords = [];
 
       for (let i = 0; i < cards.length; i++) {
@@ -560,11 +599,11 @@
         const exercise = card.querySelector('.ex-name').value.trim();
         const primaryTarget = card.querySelector('.ex-primary').value;
         const memo = card.querySelector('.ex-memo').value.trim();
-        
+
         const secondaryCheckBoxes = card.querySelectorAll('.ex-secondary-group input[type="checkbox"]:checked');
         const secondaryTargets = Array.from(secondaryCheckBoxes).map(cb => cb.value);
 
-        if (!exercise && cards.length > 1) continue; // 空カードはスキップ
+        if (!exercise && cards.length > 1) continue;
         if (!exercise) { alert(`種目 #${i + 1} の種目名を入力してください`); return; }
         if (!primaryTarget) { alert(`種目 #${i + 1} の主部位を選択してください`); return; }
 
@@ -596,22 +635,21 @@
           secondaryTargets,
           sets: setsData,
           memo,
-          totalVolume
+          totalVolume,
+          elapsedTime: dailyElapsedTime
         });
       }
 
       let records = JSON.parse(localStorage.getItem('workout_records') || '[]');
-      // 選択日の既存レコードを除外して置き換え
       records = records.filter(r => r.date !== date);
       records.unshift(...newDayRecords);
 
       localStorage.setItem('workout_records', JSON.stringify(records));
-      alert('記録を保存しました');
+      alert('本日のメニューと記録を保存しました');
       updateExerciseDatalist();
       updateVolumeChart();
     }
 
-    // --- 種目サジェストdatalistとグラフ選択肢の更新 ---
     function updateExerciseDatalist() {
       const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
       const exercises = [...new Set(records.map(r => r.exercise))];
@@ -622,7 +660,6 @@
       populateChartExerciseSelect(exercises);
     }
 
-    // --- 種目ボリューム推移グラフ ---
     function populateChartExerciseSelect(exercises) {
       const select = document.getElementById('chart-exercise-select');
       const currentValue = select.value;
@@ -689,17 +726,17 @@
       });
     }
 
-    // 初期化実行
     onDateChange();
 
-    // --- データの書き出し (エクスポート) ---
     function exportData() {
       const records = localStorage.getItem('workout_records') || '[]';
       const weights = localStorage.getItem('daily_weights') || '{}';
+      const times = localStorage.getItem('daily_elapsed_times') || '{}';
       
       const backupData = {
         workout_records: JSON.parse(records),
-        daily_weights: JSON.parse(weights)
+        daily_weights: JSON.parse(weights),
+        daily_elapsed_times: JSON.parse(times)
       };
 
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
@@ -711,7 +748,6 @@
       downloadAnchor.remove();
     }
 
-    // --- データの読み込み (インポート) ---
     function importData(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -721,12 +757,13 @@
         try {
           const importedData = JSON.parse(e.target.result);
           
-          if (importedData.workout_records && importedData.daily_weights) {
+          if (importedData.workout_records) {
             if (confirm('現在のデータを上書きして、読み込んだデータを反映しますか？')) {
               localStorage.setItem('workout_records', JSON.stringify(importedData.workout_records));
-              localStorage.setItem('daily_weights', JSON.stringify(importedData.daily_weights));
+              if (importedData.daily_weights) localStorage.setItem('daily_weights', JSON.stringify(importedData.daily_weights));
+              if (importedData.daily_elapsed_times) localStorage.setItem('daily_elapsed_times', JSON.stringify(importedData.daily_elapsed_times));
               alert('データの読み込みが完了しました。');
-              onDateChange(); // 表示を最新状態に更新
+              onDateChange();
             }
           } else {
             alert('ファイル形式が正しくありません。');
