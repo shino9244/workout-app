@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>筋トレ記録 App Complete</title>
-<link rel="manifest" href="manifest.json">
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js');
-  }
-</script>
+  <link rel="manifest" href="manifest.json">
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+    }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
@@ -55,10 +55,7 @@
       background: #f8fafc;
       font-family: inherit;
     }
-    textarea {
-      resize: vertical;
-      min-height: 60px;
-    }
+    textarea { resize: vertical; min-height: 60px; }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     
     .checkbox-group {
@@ -133,14 +130,6 @@
       margin-bottom: 8px;
     }
 
-    .past-load-box {
-      background: #ffffff;
-      border: 1px dashed var(--border);
-      padding: 8px;
-      border-radius: 8px;
-      margin-bottom: 12px;
-    }
-
     .set-row {
       display: flex;
       align-items: center;
@@ -155,6 +144,31 @@
     .set-row input { margin-bottom: 0; background: #fff; }
 
     .chart-container { position: relative; width: 100%; height: 240px; }
+
+    /* モーダルスタイル */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background: #fff;
+      padding: 20px;
+      border-radius: var(--radius);
+      width: 90%;
+      max-width: 500px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .tab-buttons { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; }
+    .tab-buttons button { flex: none; font-size: 0.8rem; padding: 6px 10px; }
+    .tab-buttons button.active { background: var(--primary); color: #fff; }
+    .history-item { border-bottom: 1px solid var(--border); padding: 8px 0; font-size: 0.85rem; }
+    .history-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
   </style>
 </head>
 <body>
@@ -184,11 +198,8 @@
       </div>
     </div>
     <div style="margin-top: 4px;">
-      <label>本日のトレーニング経過時間</label>
-      <div style="display: flex; gap: 8px;">
-        <input type="text" id="daily-elapsed-time" placeholder="--:--:--" style="margin-bottom: 0;" onchange="saveDailyElapsedTime()">
-        <button class="secondary sm" style="flex: 0 0 auto;" onclick="applyStopwatchToDaily()">タイマーから取得</button>
-      </div>
+      <label>本日のトレーニング経過時間 (タイマーと連動中)</label>
+      <input type="text" id="daily-elapsed-time" placeholder="00:00:00" onchange="saveDailyElapsedTime()">
     </div>
   </div>
 
@@ -253,9 +264,46 @@
     </div>
   </div>
 
+  <!-- 部位別種目選択モーダル -->
+  <div class="modal" id="categoryModal">
+    <div class="modal-content">
+      <h2>部位別種目選択</h2>
+      <div class="tab-buttons" id="categoryTabs"></div>
+      <div id="categoryExerciseList"></div>
+      <button class="secondary" style="margin-top: 12px; width: 100%;" onclick="closeCategoryModal()">閉じる</button>
+    </div>
+  </div>
+
+  <!-- 過去記録（時系列）表示モーダル -->
+  <div class="modal" id="historyModal">
+    <div class="modal-content">
+      <h2 id="historyModalTitle">過去の記録</h2>
+      <div style="margin-bottom: 8px; text-align: right;">
+        <button class="secondary sm" style="width: auto;" onclick="toggleHistorySort()">昇順/降順 切替</button>
+      </div>
+      <div id="historyList"></div>
+      <button class="secondary" style="margin-top: 12px; width: 100%;" onclick="closeHistoryModal()">閉じる</button>
+    </div>
+  </div>
+
   <script>
     let volumeChartInstance = null;
     let exerciseCardCounter = 0;
+    let activeCardIdForCategory = null;
+    let activeCardIdForHistory = null;
+    let currentHistoryExercise = '';
+    let isHistoryAsc = false;
+
+    // 部位別プリセット種目リスト
+    const presetExercises = {
+      "胸": ["ベンチプレス", "インクラインベンチプレス", "ダンベルフライ", "チェストプレス", "ディップス", "プッシュアップ"],
+      "背中": ["デッドリフト", "ラットプルダウン", "ベントオーバーローing", "シーテッドローイング", "懸垂(チンニング)"],
+      "肩": ["ショルダープレス", "サイドレイズ", "フロントレイズ", "リアレイズ", "アップライトロー"],
+      "腕": ["バーベルカール", "ダンベルカール", "インクラインカール", "ライイング・トリセプス・エクステンション", "ケーブルプレスダウン"],
+      "脚": ["スクワット", "レッグプレス", "レッグエクステンション", "レッグカール", "ブルガリアンスクワット", "カーフレイズ"],
+      "腹": ["クランチ", "レッグレイズ", "アブローラー", "プランク"],
+      "お尻": ["ヒップスラスト", "ブルガリアンスクワット", "ヒップアブダクション"]
+    };
 
     document.getElementById('workout-date').value = new Date().toISOString().substring(0, 10);
 
@@ -266,16 +314,12 @@
       updateExerciseDatalist();
     }
 
-    // --- 日別体重・日別経過時間の管理 ---
+    // --- 日別体重・経過時間管理 ---
     function saveDailyWeight() {
       const date = document.getElementById('workout-date').value;
       const weight = document.getElementById('daily-weight').value;
       let weights = JSON.parse(localStorage.getItem('daily_weights') || '{}');
-      if (weight) {
-        weights[date] = weight;
-      } else {
-        delete weights[date];
-      }
+      if (weight) weights[date] = weight; else delete weights[date];
       localStorage.setItem('daily_weights', JSON.stringify(weights));
     }
 
@@ -289,11 +333,7 @@
       const date = document.getElementById('workout-date').value;
       const time = document.getElementById('daily-elapsed-time').value;
       let times = JSON.parse(localStorage.getItem('daily_elapsed_times') || '{}');
-      if (time) {
-        times[date] = time;
-      } else {
-        delete times[date];
-      }
+      if (time) times[date] = time; else delete times[date];
       localStorage.setItem('daily_elapsed_times', JSON.stringify(times));
     }
 
@@ -301,12 +341,6 @@
       const date = document.getElementById('workout-date').value;
       const times = JSON.parse(localStorage.getItem('daily_elapsed_times') || '{}');
       document.getElementById('daily-elapsed-time').value = times[date] || '';
-    }
-
-    function applyStopwatchToDaily() {
-      const time = getFormattedStopwatchTime();
-      document.getElementById('daily-elapsed-time').value = time;
-      saveDailyElapsedTime();
     }
 
     // --- 経過時間（ストップウォッチ） ---
@@ -317,7 +351,12 @@
       const hrs = String(Math.floor(swSeconds / 3600)).padStart(2, '0');
       const mins = String(Math.floor((swSeconds % 3600) / 60)).padStart(2, '0');
       const secs = String(swSeconds % 60).padStart(2, '0');
-      document.getElementById('stopwatch-display').textContent = `${hrs}:${mins}:${secs}`;
+      const timeStr = `${hrs}:${mins}:${secs}`;
+      document.getElementById('stopwatch-display').textContent = timeStr;
+      
+      // トレーニング経過時間にリアルタイム連動
+      document.getElementById('daily-elapsed-time').value = timeStr;
+      saveDailyElapsedTime();
     }
 
     function startStopwatch() {
@@ -329,23 +368,14 @@
     }
 
     function pauseStopwatch() { clearInterval(swTimer); swTimer = null; }
-    
     function resetStopwatch() {
       pauseStopwatch();
       swSeconds = 0;
       renderStopwatchDisplay();
     }
-
     function adjustStopwatch(sec) {
       swSeconds = Math.max(0, swSeconds + sec);
       renderStopwatchDisplay();
-    }
-
-    function getFormattedStopwatchTime() {
-      const hrs = String(Math.floor(swSeconds / 3600)).padStart(2, '0');
-      const mins = String(Math.floor((swSeconds % 3600) / 60)).padStart(2, '0');
-      const secs = String(swSeconds % 60).padStart(2, '0');
-      return `${hrs}:${mins}:${secs}`;
     }
 
     // --- インターバルタイマー ---
@@ -360,7 +390,7 @@
     }
 
     function startInterval() {
-      if (intTimer) return;
+      if (intTimer) clearInterval(intTimer);
       intTimer = setInterval(() => {
         if (intRemainingSeconds > 0) {
           intRemainingSeconds--;
@@ -383,7 +413,13 @@
       renderIntervalDisplay();
     }
 
-    // --- 種目カードの動的追加 ---
+    // レップ入力完了時にタイマー開始
+    function onRepsInputComplete() {
+      resetInterval();
+      startInterval();
+    }
+
+    // --- 種目カード動的追加 ---
     function addExerciseCard(data = null) {
       exerciseCardCounter++;
       const cardId = `ex-card-${exerciseCardCounter}`;
@@ -400,14 +436,13 @@
         </div>
         
         <label>種目名</label>
-        <input type="text" class="ex-name" placeholder="例: ベンチプレス" list="exercise-history" onchange="loadPastExerciseData('${cardId}')">
+        <div style="display: flex; gap: 6px; margin-bottom: 12px;">
+          <input type="text" class="ex-name" placeholder="例: ベンチプレス" list="exercise-history" style="margin-bottom:0;">
+          <button class="secondary sm" style="flex:0 0 auto;" onclick="openCategoryModal('${cardId}')">部位から選択</button>
+        </div>
 
-        <div class="past-load-box">
-          <label>指定した過去の日付からこの種目の記録を読み込む</label>
-          <div style="display: flex; gap: 8px;">
-            <input type="date" class="ex-past-date" style="margin-bottom: 0;">
-            <button class="secondary sm" style="flex: 0 0 auto;" onclick="loadPastRecordByDate('${cardId}')">過去記録を読み込む</button>
-          </div>
+        <div class="btn-group" style="margin-bottom: 12px;">
+          <button class="secondary sm" onclick="openHistoryModal('${cardId}')">📜 過去の記録（時系列）</button>
         </div>
 
         <div>
@@ -494,7 +529,7 @@
       div.innerHTML = `
         <span>Set ${setsContainer.children.length + 1}</span>
         <input type="number" class="set-weight" placeholder="重量(kg)" value="${weight}">
-        <input type="number" class="set-reps" placeholder="回数" value="${reps}">
+        <input type="number" class="set-reps" placeholder="回数" value="${reps}" onchange="if(this.value) onRepsInputComplete()">
       `;
       setsContainer.appendChild(div);
     }
@@ -508,68 +543,138 @@
       }
     }
 
-    function loadPastExerciseData(cardId) {
-      const card = document.getElementById(cardId);
-      if (!card) return;
-      const exerciseName = card.querySelector('.ex-name').value.trim();
-      if (!exerciseName) return;
-
-      const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
-      const pastRecord = records.find(r => r.exercise.toLowerCase() === exerciseName.toLowerCase());
-
-      if (pastRecord) {
-        applyRecordToCard(cardId, pastRecord);
-      }
-    }
-
-    function loadPastRecordByDate(cardId) {
-      const card = document.getElementById(cardId);
-      if (!card) return;
+    // --- 部位別種目選択機能 ---
+    function openCategoryModal(cardId) {
+      activeCardIdForCategory = cardId;
+      const tabsEl = document.getElementById('categoryTabs');
+      tabsEl.innerHTML = '';
       
-      const exerciseName = card.querySelector('.ex-name').value.trim();
-      const targetDate = card.querySelector('.ex-past-date').value;
+      const categories = Object.keys(presetExercises);
+      categories.forEach((cat, idx) => {
+        const btn = document.createElement('button');
+        btn.textContent = cat;
+        btn.className = idx === 0 ? 'active' : '';
+        btn.onclick = () => {
+          document.querySelectorAll('#categoryTabs button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          renderCategoryExercises(cat);
+        };
+        tabsEl.appendChild(btn);
+      });
 
-      if (!exerciseName) {
-        alert('種目名を入力してください。');
-        return;
-      }
-      if (!targetDate) {
-        alert('読み込みたい過去の日付を選択してください。');
-        return;
-      }
-
-      const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
-      const targetRecord = records.find(r => 
-        r.exercise.toLowerCase() === exerciseName.toLowerCase() && r.date === targetDate
-      );
-
-      if (targetRecord) {
-        applyRecordToCard(cardId, targetRecord);
-        alert(`${targetDate} の「${exerciseName}」の記録を読み込みました。`);
-      } else {
-        alert(`${targetDate} の「${exerciseName}」の記録は見つかりませんでした。`);
-      }
+      renderCategoryExercises(categories[0]);
+      document.getElementById('categoryModal').style.display = 'flex';
     }
 
-    function applyRecordToCard(cardId, record) {
+    function renderCategoryExercises(category) {
+      const listEl = document.getElementById('categoryExerciseList');
+      listEl.innerHTML = '';
+      const items = presetExercises[category] || [];
+      
+      items.forEach(exName => {
+        const btn = document.createElement('button');
+        btn.textContent = exName;
+        btn.className = 'secondary';
+        btn.style.width = '100%';
+        btn.style.marginBottom = '6px';
+        btn.onclick = () => selectCategoryExercise(exName, category);
+        listEl.appendChild(btn);
+      });
+    }
+
+    function selectCategoryExercise(exName, category) {
+      if (activeCardIdForCategory) {
+        const card = document.getElementById(activeCardIdForCategory);
+        if (card) {
+          card.querySelector('.ex-name').value = exName;
+          card.querySelector('.ex-primary').value = category;
+        }
+      }
+      closeCategoryModal();
+    }
+
+    function closeCategoryModal() {
+      document.getElementById('categoryModal').style.display = 'none';
+    }
+
+    // --- 過去記録（時系列）表示機能 ---
+    function openHistoryModal(cardId) {
       const card = document.getElementById(cardId);
       if (!card) return;
+      const exName = card.querySelector('.ex-name').value.trim();
+      
+      if (!exName) {
+        alert('先に種目名を入力してください。');
+        return;
+      }
 
+      activeCardIdForHistory = cardId;
+      currentHistoryExercise = exName;
+      document.getElementById('historyModalTitle').textContent = `「${exName}」の過去記録`;
+      renderHistoryList();
+      document.getElementById('historyModal').style.display = 'flex';
+    }
+
+    function renderHistoryList() {
+      const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
+      let matched = records.filter(r => r.exercise.toLowerCase() === currentHistoryExercise.toLowerCase());
+
+      matched.sort((a, b) => isHistoryAsc ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));
+
+      const listEl = document.getElementById('historyList');
+      if (matched.length === 0) {
+        listEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">過去の記録はありません。</p>';
+        return;
+      }
+
+      listEl.innerHTML = matched.map(r => `
+        <div class="history-item">
+          <div class="history-item-header">
+            <strong>📅 ${r.date}</strong>
+            <button class="secondary sm" onclick='loadRecordToCard(${JSON.stringify(r).replace(/'/g, "&apos;")})'>この日の記録を読み込む</button>
+          </div>
+          <div>セット: ${r.sets.map((s, idx) => `[Set${idx+1}] ${s.weight}kg × ${s.reps}回`).join(', ')}</div>
+          ${r.memo ? `<div style="color:var(--text-muted);">メモ: ${r.memo}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function loadRecordToCard(record) {
+      if (!activeCardIdForHistory) return;
+      const card = document.getElementById(activeCardIdForHistory);
+      if (!card) return;
+
+      card.querySelector('.ex-name').value = record.exercise || '';
       card.querySelector('.ex-primary').value = record.primaryTarget || '';
-      card.querySelectorAll('.ex-secondary-group input[type="checkbox"]').forEach(cb => {
+      card.querySelector('.ex-memo').value = record.memo || '';
+
+      const cbs = card.querySelectorAll('.ex-secondary-group input[type="checkbox"]');
+      cbs.forEach(cb => {
         cb.checked = record.secondaryTargets ? record.secondaryTargets.includes(cb.value) : false;
       });
-      card.querySelector('.ex-memo').value = record.memo || '';
 
       const setsContainer = card.querySelector('.sets-container');
       setsContainer.innerHTML = '';
+
       if (record.sets && record.sets.length > 0) {
-        record.sets.forEach(s => addSetRowToCard(cardId, s.weight, s.reps));
+        record.sets.forEach(s => addSetRowToCard(activeCardIdForHistory, s.weight, s.reps));
       } else {
-        addSetRowToCard(cardId); addSetRowToCard(cardId); addSetRowToCard(cardId);
+        addSetRowToCard(activeCardIdForHistory);
       }
+
+      closeHistoryModal();
     }
 
+    function toggleHistorySort() {
+      isHistoryAsc = !isHistoryAsc;
+      renderHistoryList();
+    }
+
+    function closeHistoryModal() {
+      document.getElementById('historyModal').style.display = 'none';
+    }
+
+    // --- 保存・読み込み処理 ---
     function loadDayRecords() {
       const selectedDate = document.getElementById('workout-date').value;
       const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
