@@ -651,9 +651,16 @@
     function renderCategoryExercises(category) {
       const listEl = document.getElementById('categoryExerciseList');
       listEl.innerHTML = '';
-      const items = presetExercises[category] || [];
       
-      items.forEach(exName => {
+      const defaultItems = presetExercises[category] || [];
+      const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
+      const savedCategoryExercises = records
+        .filter(r => r.primaryTarget === category && r.exercise)
+        .map(r => r.exercise.trim());
+
+      const combinedExercises = [...new Set([...defaultItems, ...savedCategoryExercises])];
+      
+      combinedExercises.forEach(exName => {
         const btn = document.createElement('button');
         btn.textContent = exName;
         btn.className = 'secondary';
