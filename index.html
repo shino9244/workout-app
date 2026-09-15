@@ -294,6 +294,29 @@
     let currentHistoryExercise = '';
     let isHistoryAsc = false;
 
+    // 通知の初回許可リクエスト
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    // 効果音再生
+    function playAlarmSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.8);
+      } catch (e) {
+        console.log('Audio playback error:', e);
+      }
+    }
+
     // 部位別プリセット種目リスト
     const presetExercises = {
       "胸": ["ベンチプレス", "インクラインベンチプレス", "ダンベルフライ", "チェストプレス", "ディップス", "プッシュアップ"],
@@ -343,45 +366,59 @@
       document.getElementById('daily-elapsed-time').value = times[date] || '';
     }
 
-    // --- 経過時間（ストップウォッチ） ---
+    // --- 経過時間（ストップウォッチ：絶対時刻ベース） ---
     let swTimer = null;
-    let swSeconds = 0;
+    let swElapsedSeconds = 0;
+    let swStartTime = null;
 
     function renderStopwatchDisplay() {
-      const hrs = String(Math.floor(swSeconds / 3600)).padStart(2, '0');
-      const mins = String(Math.floor((swSeconds % 3600) / 60)).padStart(2, '0');
-      const secs = String(swSeconds % 60).padStart(2, '0');
+      const hrs = String(Math.floor(swElapsedSeconds / 3600)).padStart(2, '0');
+      const mins = String(Math.floor((swElapsedSeconds % 3600) / 60)).padStart(2, '0');
+      const secs = String(swElapsedSeconds % 60).padStart(2, '0');
       const timeStr = `${hrs}:${mins}:${secs}`;
       document.getElementById('stopwatch-display').textContent = timeStr;
       
-      // トレーニング経過時間にリアルタイム連動
       document.getElementById('daily-elapsed-time').value = timeStr;
       saveDailyElapsedTime();
     }
 
+    function updateStopwatch() {
+      const now = Date.now();
+      swElapsedSeconds += Math.floor((now - swStartTime) / 1000);
+      swStartTime = now;
+      renderStopwatchDisplay();
+    }
+
     function startStopwatch() {
       if (swTimer) return;
-      swTimer = setInterval(() => {
-        swSeconds++;
-        renderStopwatchDisplay();
-      }, 1000);
+      swStartTime = Date.now();
+      swTimer = setInterval(updateStopwatch, 500);
     }
 
-    function pauseStopwatch() { clearInterval(swTimer); swTimer = null; }
+    function pauseStopwatch() {
+      if (swTimer) {
+        updateStopwatch();
+        clearInterval(swTimer);
+        swTimer = null;
+      }
+    }
+
     function resetStopwatch() {
       pauseStopwatch();
-      swSeconds = 0;
-      renderStopwatchDisplay();
-    }
-    function adjustStopwatch(sec) {
-      swSeconds = Math.max(0, swSeconds + sec);
+      swElapsedSeconds = 0;
       renderStopwatchDisplay();
     }
 
-    // --- インターバルタイマー ---
+    function adjustStopwatch(sec) {
+      swElapsedSeconds = Math.max(0, swElapsedSeconds + sec);
+      renderStopwatchDisplay();
+    }
+
+    // --- インターバルタイマー（絶対時刻ベース） ---
     let intTimer = null;
     let intDefaultSeconds = 120;
     let intRemainingSeconds = 120;
+    let intEndTime = null;
 
     function renderIntervalDisplay() {
       const mins = String(Math.floor(intRemainingSeconds / 60)).padStart(2, '0');
@@ -389,29 +426,60 @@
       document.getElementById('interval-display').textContent = `${mins}:${secs}`;
     }
 
-    function startInterval() {
-      if (intTimer) clearInterval(intTimer);
-      intTimer = setInterval(() => {
-        if (intRemainingSeconds > 0) {
-          intRemainingSeconds--;
-          renderIntervalDisplay();
+    function updateInterval() {
+      const now = Date.now();
+      intRemainingSeconds = Math.max(0, Math.ceil((intEndTime - now) / 1000));
+      renderIntervalDisplay();
+
+      if (intRemainingSeconds <= 0) {
+        pauseInterval();
+        playAlarmSound();
+
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('⏰ インターバル終了！', {
+            body: '次のセットを開始してください。',
+            tag: 'interval-timer'
+          });
         } else {
-          pauseInterval();
           alert('⏰ インターバル終了です！');
         }
-      }, 1000);
+      }
     }
 
-    function pauseInterval() { clearInterval(intTimer); intTimer = null; }
+    function startInterval() {
+      if (intTimer) clearInterval(intTimer);
+      intEndTime = Date.now() + intRemainingSeconds * 1000;
+      intTimer = setInterval(updateInterval, 500);
+    }
+
+    function pauseInterval() {
+      if (intTimer) {
+        clearInterval(intTimer);
+        intTimer = null;
+      }
+    }
+
     function resetInterval() {
       pauseInterval();
       intRemainingSeconds = intDefaultSeconds;
       renderIntervalDisplay();
     }
+
     function adjustInterval(sec) {
       intRemainingSeconds = Math.max(0, intRemainingSeconds + sec);
+      if (intTimer) {
+        intEndTime += sec * 1000;
+      }
       renderIntervalDisplay();
     }
+
+    // タブ復帰・画面点灯時に描画を同期
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        if (swTimer) updateStopwatch();
+        if (intTimer) updateInterval();
+      }
+    });
 
     // レップ入力完了時にタイマー開始
     function onRepsInputComplete() {
