@@ -366,15 +366,21 @@
       document.getElementById('daily-elapsed-time').value = times[date] || '';
     }
 
-    // --- 経過時間（ストップウォッチ：絶対時刻ベース） ---
+    // --- 経過時間（ストップウォッチ：累積時間 + 開始時刻基準） ---
     let swTimer = null;
-    let swElapsedSeconds = 0;
-    let swStartTime = null;
+    let swAccumulatedSeconds = 0; // 停止時点までの累積経過秒数
+    let swStartTime = null;         // 現在の開始時刻(ms)
+
+    function getSwElapsedSeconds() {
+      if (!swStartTime) return swAccumulatedSeconds;
+      return swAccumulatedSeconds + Math.floor((Date.now() - swStartTime) / 1000);
+    }
 
     function renderStopwatchDisplay() {
-      const hrs = String(Math.floor(swElapsedSeconds / 3600)).padStart(2, '0');
-      const mins = String(Math.floor((swElapsedSeconds % 3600) / 60)).padStart(2, '0');
-      const secs = String(swElapsedSeconds % 60).padStart(2, '0');
+      const totalSec = getSwElapsedSeconds();
+      const hrs = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+      const mins = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+      const secs = String(totalSec % 60).padStart(2, '0');
       const timeStr = `${hrs}:${mins}:${secs}`;
       document.getElementById('stopwatch-display').textContent = timeStr;
       
@@ -383,9 +389,6 @@
     }
 
     function updateStopwatch() {
-      const now = Date.now();
-      swElapsedSeconds += Math.floor((now - swStartTime) / 1000);
-      swStartTime = now;
       renderStopwatchDisplay();
     }
 
@@ -397,24 +400,32 @@
 
     function pauseStopwatch() {
       if (swTimer) {
-        updateStopwatch();
+        swAccumulatedSeconds = getSwElapsedSeconds();
+        swStartTime = null;
         clearInterval(swTimer);
         swTimer = null;
+        renderStopwatchDisplay();
       }
     }
 
     function resetStopwatch() {
       pauseStopwatch();
-      swElapsedSeconds = 0;
+      swAccumulatedSeconds = 0;
+      swStartTime = null;
       renderStopwatchDisplay();
     }
 
     function adjustStopwatch(sec) {
-      swElapsedSeconds = Math.max(0, swElapsedSeconds + sec);
+      if (swTimer) {
+        swAccumulatedSeconds = Math.max(0, getSwElapsedSeconds() + sec);
+        swStartTime = Date.now();
+      } else {
+        swAccumulatedSeconds = Math.max(0, swAccumulatedSeconds + sec);
+      }
       renderStopwatchDisplay();
     }
 
-    // --- インターバルタイマー（絶対時刻ベース） ---
+    // --- インターバルタイマー（終了予定時刻基準） ---
     let intTimer = null;
     let intDefaultSeconds = 120;
     let intRemainingSeconds = 120;
@@ -454,8 +465,11 @@
 
     function pauseInterval() {
       if (intTimer) {
+        const now = Date.now();
+        intRemainingSeconds = Math.max(0, Math.ceil((intEndTime - now) / 1000));
         clearInterval(intTimer);
         intTimer = null;
+        renderIntervalDisplay();
       }
     }
 
@@ -473,7 +487,7 @@
       renderIntervalDisplay();
     }
 
-    // タブ復帰・画面点灯時に描画を同期
+    // タブ復帰・画面点灯時に描画を即座に同期
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
         if (swTimer) updateStopwatch();
