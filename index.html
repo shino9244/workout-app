@@ -363,7 +363,19 @@
     function loadDailyElapsedTime() {
       const date = document.getElementById('workout-date').value;
       const times = JSON.parse(localStorage.getItem('daily_elapsed_times') || '{}');
-      document.getElementById('daily-elapsed-time').value = times[date] || '';
+      const time = times[date] || '';
+      document.getElementById('daily-elapsed-time').value = time;
+      
+      // 保存されている形式 (HH:MM:SS) からタイマーの経過秒数を復元
+      if (time && !swTimer) {
+        const parts = time.split(':').map(Number);
+        if (parts.length === 3 && !parts.some(isNaN)) {
+          swAccumulatedSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+          document.getElementById('stopwatch-display').textContent = time;
+        }
+      } else if (!time && !swTimer && swAccumulatedSeconds === 0) {
+        document.getElementById('stopwatch-display').textContent = '00:00:00';
+      }
     }
 
     // --- 経過時間（ストップウォッチ：累積時間 + 開始時刻基準） ---
@@ -487,7 +499,7 @@
       renderIntervalDisplay();
     }
 
-    // タブ復帰・画面点灯時に描画を即座に同期
+    // タブ復帰・画面点灯時にタイマー表示のみ即座に同期（フォーム再描画は行わない）
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
         if (swTimer) updateStopwatch();
