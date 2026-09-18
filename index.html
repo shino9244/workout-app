@@ -208,10 +208,10 @@
     <h2>📝 本日のトレーニングメニュー</h2>
     <datalist id="exercise-history"></datalist>
 
-    <div id="exercises-container"></div>
+    <div id="exercises-container" oninput="saveDraft()" onchange="saveDraft()"></div>
 
     <div class="btn-group" style="margin-bottom: 12px;">
-      <button class="secondary" onclick="addExerciseCard()">+ 種目を追加</button>
+      <button class="secondary" onclick="addExerciseCard(); saveDraft();">+ 種目を追加</button>
     </div>
 
     <div class="btn-group">
@@ -513,6 +513,54 @@
       startInterval();
     }
 
+    // --- 下書き（ドラフト）自動保存・復元処理 ---
+    function getCurrentFormState() {
+      const cards = document.querySelectorAll('#exercises-container .exercise-card');
+      const cardDatas = [];
+      cards.forEach(card => {
+        const exercise = card.querySelector('.ex-name').value;
+        const primaryTarget = card.querySelector('.ex-primary').value;
+        const memo = card.querySelector('.ex-memo').value;
+
+        const secondaryCheckBoxes = card.querySelectorAll('.ex-secondary-group input[type="checkbox"]:checked');
+        const secondaryTargets = Array.from(secondaryCheckBoxes).map(cb => cb.value);
+
+        const weightInputs = card.querySelectorAll('.set-weight');
+        const repsInputs = card.querySelectorAll('.set-reps');
+        let sets = [];
+
+        for (let j = 0; j < weightInputs.length; j++) {
+          sets.push({
+            weight: weightInputs[j].value,
+            reps: repsInputs[j].value
+          });
+        }
+
+        cardDatas.push({
+          exercise,
+          primaryTarget,
+          secondaryTargets,
+          memo,
+          sets
+        });
+      });
+      return cardDatas;
+    }
+
+    function saveDraft() {
+      const date = document.getElementById('workout-date').value;
+      if (!date) return;
+      const drafts = JSON.parse(localStorage.getItem('workout_drafts') || '{}');
+      drafts[date] = getCurrentFormState();
+      localStorage.setItem('workout_drafts', JSON.stringify(drafts));
+    }
+
+    function clearDraft(date) {
+      const drafts = JSON.parse(localStorage.getItem('workout_drafts') || '{}');
+      delete drafts[date];
+      localStorage.setItem('workout_drafts', JSON.stringify(drafts));
+    }
+
     // --- 種目カード動的追加 ---
     function addExerciseCard(data = null) {
       exerciseCardCounter++;
@@ -571,8 +619,8 @@
         <div class="sets-container"></div>
         
         <div class="btn-group" style="margin-top: 8px;">
-          <button class="secondary sm" onclick="addSetRowToCard('${cardId}')">+ セット追加</button>
-          <button class="secondary danger sm" onclick="removeSetRowFromCard('${cardId}')">- セット削除</button>
+          <button class="secondary sm" onclick="addSetRowToCard('${cardId}'); saveDraft();">+ セット追加</button>
+          <button class="secondary danger sm" onclick="removeSetRowFromCard('${cardId}'); saveDraft();">- セット削除</button>
         </div>
       `;
 
@@ -604,6 +652,7 @@
       if (card) {
         container.removeChild(card);
         updateCardNumbers();
+        saveDraft();
       }
     }
 
@@ -689,6 +738,7 @@
         if (card) {
           card.querySelector('.ex-name').value = exName;
           card.querySelector('.ex-primary').value = category;
+          saveDraft();
         }
       }
       closeCategoryModal();
@@ -763,6 +813,7 @@
         addSetRowToCard(activeCardIdForHistory);
       }
 
+      saveDraft();
       closeHistoryModal();
     }
 
@@ -778,12 +829,20 @@
     // --- 保存・読み込み処理 ---
     function loadDayRecords() {
       const selectedDate = document.getElementById('workout-date').value;
-      const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
-      const dayRecords = records.filter(r => r.date === selectedDate);
-      
       const container = document.getElementById('exercises-container');
       container.innerHTML = '';
 
+      // 未保存の下書き（ドラフト）が存在する場合はそれを読み込む
+      const drafts = JSON.parse(localStorage.getItem('workout_drafts') || '{}');
+      if (drafts[selectedDate] && drafts[selectedDate].length > 0) {
+        drafts[selectedDate].forEach(r => addExerciseCard(r));
+        return;
+      }
+
+      // 保存済みのデータが存在する場合は読み込む
+      const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
+      const dayRecords = records.filter(r => r.date === selectedDate);
+      
       if (dayRecords.length > 0) {
         dayRecords.forEach(r => addExerciseCard(r));
       } else {
@@ -851,6 +910,7 @@
       records.unshift(...newDayRecords);
 
       localStorage.setItem('workout_records', JSON.stringify(records));
+      clearDraft(date); // 保存成功時に下書きデータを消去
       alert('本日のメニューと記録を保存しました');
       updateExerciseDatalist();
       updateVolumeChart();
