@@ -130,6 +130,18 @@
       margin-bottom: 8px;
     }
 
+    .total-volume-badge {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--primary);
+      background: #eff6ff;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid #bfdbfe;
+      margin-bottom: 8px;
+      display: inline-block;
+    }
+
     .set-row {
       display: flex;
       align-items: center;
@@ -167,8 +179,26 @@
     .tab-buttons { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; }
     .tab-buttons button { flex: none; font-size: 0.8rem; padding: 6px 10px; }
     .tab-buttons button.active { background: var(--primary); color: #fff; }
-    .history-item { border-bottom: 1px solid var(--border); padding: 8px 0; font-size: 0.85rem; }
-    .history-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .history-item { border-bottom: 1px solid var(--border); padding: 12px 0; font-size: 0.85rem; }
+    .history-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+
+    /* 履歴テーブル用スタイル */
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      margin-bottom: 6px;
+      font-size: 0.8rem;
+    }
+    .history-table th, .history-table td {
+      border: 1px solid var(--border);
+      padding: 6px;
+      text-align: center;
+    }
+    .history-table th {
+      background-color: #f1f5f9;
+      color: var(--text-muted);
+    }
   </style>
 </head>
 <body>
@@ -366,7 +396,6 @@
       const time = times[date] || '';
       document.getElementById('daily-elapsed-time').value = time;
       
-      // 保存されている形式 (HH:MM:SS) からタイマーの経過秒数を復元
       if (time && !swTimer) {
         const parts = time.split(':').map(Number);
         if (parts.length === 3 && !parts.some(isNaN)) {
@@ -378,10 +407,10 @@
       }
     }
 
-    // --- 経過時間（ストップウォッチ：累積時間 + 開始時刻基準） ---
+    // --- 経過時間タイマー ---
     let swTimer = null;
-    let swAccumulatedSeconds = 0; // 停止時点までの累積経過秒数
-    let swStartTime = null;         // 現在の開始時刻(ms)
+    let swAccumulatedSeconds = 0;
+    let swStartTime = null;
 
     function getSwElapsedSeconds() {
       if (!swStartTime) return swAccumulatedSeconds;
@@ -437,7 +466,7 @@
       renderStopwatchDisplay();
     }
 
-    // --- インターバルタイマー（終了予定時刻基準） ---
+    // --- インターバルタイマー ---
     let intTimer = null;
     let intDefaultSeconds = 120;
     let intRemainingSeconds = 120;
@@ -499,7 +528,6 @@
       renderIntervalDisplay();
     }
 
-    // タブ復帰・画面点灯時にタイマー表示のみ即座に同期（フォーム再描画は行わない）
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
         if (swTimer) updateStopwatch();
@@ -507,7 +535,6 @@
       }
     });
 
-    // レップ入力完了時にタイマー開始
     function onRepsInputComplete() {
       resetInterval();
       startInterval();
@@ -553,12 +580,34 @@
       const drafts = JSON.parse(localStorage.getItem('workout_drafts') || '{}');
       drafts[date] = getCurrentFormState();
       localStorage.setItem('workout_drafts', JSON.stringify(drafts));
+      updateCardTotalVolumes();
     }
 
     function clearDraft(date) {
       const drafts = JSON.parse(localStorage.getItem('workout_drafts') || '{}');
       delete drafts[date];
       localStorage.setItem('workout_drafts', JSON.stringify(drafts));
+    }
+
+    // --- トータル挙上重量のリアルタイム計算・更新 ---
+    function updateCardTotalVolumes() {
+      const cards = document.querySelectorAll('#exercises-container .exercise-card');
+      cards.forEach(card => {
+        const weightInputs = card.querySelectorAll('.set-weight');
+        const repsInputs = card.querySelectorAll('.set-reps');
+        let total = 0;
+
+        for (let j = 0; j < weightInputs.length; j++) {
+          const w = parseFloat(weightInputs[j].value) || 0;
+          const r = parseInt(repsInputs[j].value) || 0;
+          total += w * r;
+        }
+
+        const badge = card.querySelector('.total-volume-badge');
+        if (badge) {
+          badge.textContent = `トータル挙上重量: ${total.toLocaleString()} kg`;
+        }
+      });
     }
 
     // --- 種目カード動的追加 ---
@@ -577,6 +626,8 @@
           <button class="danger sm" onclick="removeExerciseCard('${cardId}')" style="flex:0 0 auto;">削除</button>
         </div>
         
+        <div class="total-volume-badge">トータル挙上重量: 0 kg</div>
+
         <label>種目名</label>
         <div style="display: flex; gap: 6px; margin-bottom: 12px;">
           <input type="text" class="ex-name" placeholder="例: ベンチプレス" list="exercise-history" style="margin-bottom:0;">
@@ -644,6 +695,8 @@
       } else {
         addSetRowToCard(cardId); addSetRowToCard(cardId); addSetRowToCard(cardId);
       }
+      
+      updateCardTotalVolumes();
     }
 
     function removeExerciseCard(cardId) {
@@ -675,6 +728,7 @@
         <input type="number" class="set-reps" placeholder="回数" value="${reps}" onchange="if(this.value) onRepsInputComplete()">
       `;
       setsContainer.appendChild(div);
+      updateCardTotalVolumes();
     }
 
     function removeSetRowFromCard(cardId) {
@@ -683,6 +737,7 @@
       const setsContainer = card.querySelector('.sets-container');
       if (setsContainer.children.length > 1) {
         setsContainer.removeChild(setsContainer.lastChild);
+        updateCardTotalVolumes();
       }
     }
 
@@ -778,16 +833,38 @@
         return;
       }
 
-      listEl.innerHTML = matched.map(r => `
-        <div class="history-item">
-          <div class="history-item-header">
-            <strong>📅 ${r.date}</strong>
-            <button class="secondary sm" onclick='loadRecordToCard(${JSON.stringify(r).replace(/'/g, "&apos;")})'>この日の記録を読み込む</button>
+      listEl.innerHTML = matched.map(r => {
+        const setRows = r.sets.map((s, idx) => `
+          <tr>
+            <td>Set ${idx + 1}</td>
+            <td>${s.weight} kg</td>
+            <td>${s.reps} 回</td>
+          </tr>
+        `).join('');
+
+        return `
+          <div class="history-item">
+            <div class="history-item-header">
+              <strong>📅 ${r.date}</strong>
+              <button class="secondary sm" onclick='loadRecordToCard(${JSON.stringify(r).replace(/'/g, "&apos;")})'>この日の記録を読み込む</button>
+            </div>
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>セット</th>
+                  <th>重量</th>
+                  <th>回数</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${setRows}
+              </tbody>
+            </table>
+            ${r.totalVolume ? `<div style="font-weight:600; color:var(--primary); font-size:0.8rem;">合計挙上重量: ${r.totalVolume.toLocaleString()} kg</div>` : ''}
+            ${r.memo ? `<div style="color:var(--text-muted); font-size:0.8rem; margin-top:2px;">メモ: ${r.memo}</div>` : ''}
           </div>
-          <div>セット: ${r.sets.map((s, idx) => `[Set${idx+1}] ${s.weight}kg × ${s.reps}回`).join(', ')}</div>
-          ${r.memo ? `<div style="color:var(--text-muted);">メモ: ${r.memo}</div>` : ''}
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
     function loadRecordToCard(record) {
@@ -832,14 +909,12 @@
       const container = document.getElementById('exercises-container');
       container.innerHTML = '';
 
-      // 未保存の下書き（ドラフト）が存在する場合はそれを読み込む
       const drafts = JSON.parse(localStorage.getItem('workout_drafts') || '{}');
       if (drafts[selectedDate] && drafts[selectedDate].length > 0) {
         drafts[selectedDate].forEach(r => addExerciseCard(r));
         return;
       }
 
-      // 保存済みのデータが存在する場合は読み込む
       const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
       const dayRecords = records.filter(r => r.date === selectedDate);
       
@@ -910,7 +985,7 @@
       records.unshift(...newDayRecords);
 
       localStorage.setItem('workout_records', JSON.stringify(records));
-      clearDraft(date); // 保存成功時に下書きデータを消去
+      clearDraft(date);
       alert('本日のメニューと記録を保存しました');
       updateExerciseDatalist();
       updateVolumeChart();
