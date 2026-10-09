@@ -260,7 +260,7 @@
   <!-- 3. 種目ボリューム推移グラフ -->
   <div class="card">
     <h2>📈 種目ボリューム推移</h2>
-    <label for="chart-exercise-select">表示する種目を選択</label>
+    <label for="chart-exercise-select" style="font-size:0.85rem; font-weight:600; color:var(--text-muted); margin-bottom:4px; display:block;">表示する種目を選択</label>
     <select id="chart-exercise-select" onchange="updateVolumeChart()">
       <option value="">記録のある種目が表示されます</option>
     </select>
@@ -333,16 +333,12 @@
     let isHistoryAsc = false;
     let currentActiveCategory = "胸";
 
-    // モーダル外タップ時にモーダルを閉じるイベントを設定
+    // モーダル外タップ時にモーダルを閉じるイベント
     window.addEventListener('click', (e) => {
       const historyModal = document.getElementById('historyModal');
       const categoryModal = document.getElementById('categoryModal');
-      if (e.target === historyModal) {
-        closeHistoryModal();
-      }
-      if (e.target === categoryModal) {
-        closeCategoryModal();
-      }
+      if (e.target === historyModal) closeHistoryModal();
+      if (e.target === categoryModal) closeCategoryModal();
     });
 
     // 通知の初回許可リクエスト
@@ -428,7 +424,7 @@
       }
     }
 
-    // --- 経過時間タイマー ---
+    // --- 経過時間タイマー（絶対時刻比較型） ---
     let swTimer = null;
     let swAccumulatedSeconds = 0;
     let swStartTime = null;
@@ -445,7 +441,6 @@
       const secs = String(totalSec % 60).padStart(2, '0');
       const timeStr = `${hrs}:${mins}:${secs}`;
       document.getElementById('stopwatch-display').textContent = timeStr;
-      
       document.getElementById('daily-elapsed-time').value = timeStr;
       saveDailyElapsedTime();
     }
@@ -487,7 +482,7 @@
       renderStopwatchDisplay();
     }
 
-    // --- インターバルタイマー ---
+    // --- インターバルタイマー（絶対時刻比較型） ---
     let intTimer = null;
     let intDefaultSeconds = 120;
     let intRemainingSeconds = 120;
@@ -500,6 +495,7 @@
     }
 
     function updateInterval() {
+      if (!intEndTime) return;
       const now = Date.now();
       intRemainingSeconds = Math.max(0, Math.ceil((intEndTime - now) / 1000));
       renderIntervalDisplay();
@@ -531,6 +527,7 @@
         intRemainingSeconds = Math.max(0, Math.ceil((intEndTime - now) / 1000));
         clearInterval(intTimer);
         intTimer = null;
+        intEndTime = null;
         renderIntervalDisplay();
       }
     }
@@ -543,18 +540,25 @@
 
     function adjustInterval(sec) {
       intRemainingSeconds = Math.max(0, intRemainingSeconds + sec);
-      if (intTimer) {
+      if (intTimer && intEndTime) {
         intEndTime += sec * 1000;
       }
       renderIntervalDisplay();
     }
 
+    // アプリ（Webページ）復元・復帰時の同期処理
+    function syncAppState() {
+      if (swTimer) updateStopwatch();
+      if (intTimer) updateInterval();
+      saveDraft();
+    }
+
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) {
-        if (swTimer) updateStopwatch();
-        if (intTimer) updateInterval();
-      }
+      if (!document.hidden) syncAppState();
+      else saveDraft();
     });
+
+    window.addEventListener('focus', syncAppState);
 
     function onRepsInputComplete() {
       resetInterval();
@@ -598,8 +602,10 @@
     function saveDraft() {
       const date = document.getElementById('workout-date').value;
       if (!date) return;
+      const state = getCurrentFormState();
+      if (state.length === 0) return;
       const drafts = JSON.parse(localStorage.getItem('workout_drafts') || '{}');
-      drafts[date] = getCurrentFormState();
+      drafts[date] = state;
       localStorage.setItem('workout_drafts', JSON.stringify(drafts));
       updateCardTotalVolumes();
     }
