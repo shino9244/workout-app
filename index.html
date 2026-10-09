@@ -324,6 +324,18 @@
     let currentHistoryExercise = '';
     let isHistoryAsc = false;
 
+    // モーダル外タップ時にモーダルを閉じるイベントを設定
+    window.addEventListener('click', (e) => {
+      const historyModal = document.getElementById('historyModal');
+      const categoryModal = document.getElementById('categoryModal');
+      if (e.target === historyModal) {
+        closeHistoryModal();
+      }
+      if (e.target === categoryModal) {
+        closeCategoryModal();
+      }
+    });
+
     // 通知の初回許可リクエスト
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
