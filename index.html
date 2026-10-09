@@ -179,6 +179,14 @@
     .tab-buttons { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; }
     .tab-buttons button { flex: none; font-size: 0.8rem; padding: 6px 10px; }
     .tab-buttons button.active { background: var(--primary); color: #fff; }
+    
+    .category-exercise-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
     .history-item { border-bottom: 1px solid var(--border); padding: 12px 0; font-size: 0.85rem; }
     .history-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 
@@ -323,6 +331,7 @@
     let activeCardIdForHistory = null;
     let currentHistoryExercise = '';
     let isHistoryAsc = false;
+    let currentActiveCategory = "胸";
 
     // モーダル外タップ時にモーダルを閉じるイベントを設定
     window.addEventListener('click', (e) => {
@@ -760,6 +769,8 @@
       tabsEl.innerHTML = '';
       
       const categories = Object.keys(presetExercises);
+      currentActiveCategory = categories[0];
+
       categories.forEach((cat, idx) => {
         const btn = document.createElement('button');
         btn.textContent = cat;
@@ -767,6 +778,7 @@
         btn.onclick = () => {
           document.querySelectorAll('#categoryTabs button').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
+          currentActiveCategory = cat;
           renderCategoryExercises(cat);
         };
         tabsEl.appendChild(btn);
@@ -774,6 +786,21 @@
 
       renderCategoryExercises(categories[0]);
       document.getElementById('categoryModal').style.display = 'flex';
+    }
+
+    function getDeletedCategoryExercises() {
+      return JSON.parse(localStorage.getItem('deleted_category_exercises') || '[]');
+    }
+
+    function deleteCategoryExercise(exName) {
+      if (confirm(`部位選択リストから「${exName}」を削除しますか？`)) {
+        const deleted = getDeletedCategoryExercises();
+        if (!deleted.includes(exName)) {
+          deleted.push(exName);
+          localStorage.setItem('deleted_category_exercises', JSON.stringify(deleted));
+        }
+        renderCategoryExercises(currentActiveCategory);
+      }
     }
 
     function renderCategoryExercises(category) {
@@ -786,16 +813,33 @@
         .filter(r => r.primaryTarget === category && r.exercise)
         .map(r => r.exercise.trim());
 
-      const combinedExercises = [...new Set([...defaultItems, ...savedCategoryExercises])];
+      const deletedItems = getDeletedCategoryExercises();
+      const combinedExercises = [...new Set([...defaultItems, ...savedCategoryExercises])]
+        .filter(exName => !deletedItems.includes(exName));
+
+      if (combinedExercises.length === 0) {
+        listEl.innerHTML = '<p style="text-align:center; color:var(--text-muted); font-size:0.85rem;">表示できる種目がありません。</p>';
+        return;
+      }
       
       combinedExercises.forEach(exName => {
-        const btn = document.createElement('button');
-        btn.textContent = exName;
-        btn.className = 'secondary';
-        btn.style.width = '100%';
-        btn.style.marginBottom = '6px';
-        btn.onclick = () => selectCategoryExercise(exName, category);
-        listEl.appendChild(btn);
+        const row = document.createElement('div');
+        row.className = 'category-exercise-row';
+
+        const selectBtn = document.createElement('button');
+        selectBtn.textContent = exName;
+        selectBtn.className = 'secondary';
+        selectBtn.onclick = () => selectCategoryExercise(exName, category);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = '削除';
+        deleteBtn.className = 'danger sm';
+        deleteBtn.style.flex = '0 0 auto';
+        deleteBtn.onclick = () => deleteCategoryExercise(exName);
+
+        row.appendChild(selectBtn);
+        row.appendChild(deleteBtn);
+        listEl.appendChild(row);
       });
     }
 
@@ -1085,11 +1129,13 @@
       const records = localStorage.getItem('workout_records') || '[]';
       const weights = localStorage.getItem('daily_weights') || '{}';
       const times = localStorage.getItem('daily_elapsed_times') || '{}';
+      const deletedCategoryExercises = localStorage.getItem('deleted_category_exercises') || '[]';
       
       const backupData = {
         workout_records: JSON.parse(records),
         daily_weights: JSON.parse(weights),
-        daily_elapsed_times: JSON.parse(times)
+        daily_elapsed_times: JSON.parse(times),
+        deleted_category_exercises: JSON.parse(deletedCategoryExercises)
       };
 
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
@@ -1115,6 +1161,7 @@
               localStorage.setItem('workout_records', JSON.stringify(importedData.workout_records));
               if (importedData.daily_weights) localStorage.setItem('daily_weights', JSON.stringify(importedData.daily_weights));
               if (importedData.daily_elapsed_times) localStorage.setItem('daily_elapsed_times', JSON.stringify(importedData.daily_elapsed_times));
+              if (importedData.deleted_category_exercises) localStorage.setItem('deleted_category_exercises', JSON.stringify(importedData.deleted_category_exercises));
               alert('データの読み込みが完了しました。');
               onDateChange();
             }
