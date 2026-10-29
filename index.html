@@ -136,12 +136,23 @@
       font-weight: 600;
       color: var(--primary);
       background: #eff6ff;
-      padding: 4px 8px;
+      padding: 6px 10px;
       border-radius: 6px;
       border: 1px solid #bfdbfe;
       margin-bottom: 8px;
-      display: inline-block;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
+    .diff-badge {
+      font-size: 0.8rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #e2e8f0;
+      color: var(--text);
+    }
+    .diff-plus { color: #16a34a; background: #dcfce7; }
+    .diff-minus { color: #dc2626; background: #fee2e2; }
 
     .set-row {
       display: flex;
@@ -617,10 +628,26 @@
       localStorage.setItem('workout_drafts', JSON.stringify(drafts));
     }
 
+    // --- 前回の総挙上重量との比較計算機能 ---
+    function getPreviousTotalVolume(exerciseName, currentDate) {
+      if (!exerciseName) return null;
+      const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
+      // 選択された日付より前の日付の記録を抽出
+      const filtered = records.filter(r => r.exercise.trim().toLowerCase() === exerciseName.trim().toLowerCase() && r.date < currentDate);
+      if (filtered.length === 0) return null;
+
+      // 日付の降順（新しい順）に並べ替え
+      filtered.sort((a, b) => b.date.localeCompare(a.date));
+      return filtered[0].totalVolume || 0;
+    }
+
     // --- トータル挙上重量のリアルタイム計算・更新 ---
     function updateCardTotalVolumes() {
+      const currentDate = document.getElementById('workout-date').value;
       const cards = document.querySelectorAll('#exercises-container .exercise-card');
+      
       cards.forEach(card => {
+        const exerciseName = card.querySelector('.ex-name').value.trim();
         const weightInputs = card.querySelectorAll('.set-weight');
         const repsInputs = card.querySelectorAll('.set-reps');
         let total = 0;
@@ -633,7 +660,19 @@
 
         const badge = card.querySelector('.total-volume-badge');
         if (badge) {
-          badge.textContent = `トータル挙上重量: ${total.toLocaleString()} kg`;
+          const prevVolume = getPreviousTotalVolume(exerciseName, currentDate);
+          let diffHtml = '';
+          
+          if (prevVolume !== null) {
+            const diff = total - prevVolume;
+            const sign = diff > 0 ? '+' : '';
+            const diffClass = diff > 0 ? 'diff-plus' : (diff < 0 ? 'diff-minus' : '');
+            diffHtml = `<span class="diff-badge ${diffClass}">前回比: ${sign}${diff.toLocaleString()} kg</span>`;
+          } else {
+            diffHtml = `<span class="diff-badge">前回記録なし</span>`;
+          }
+
+          badge.innerHTML = `<span>トータル挙上重量: ${total.toLocaleString()} kg</span>${diffHtml}`;
         }
       });
     }
@@ -658,11 +697,14 @@
           </div>
         </div>
         
-        <div class="total-volume-badge">トータル挙上重量: 0 kg</div>
+        <div class="total-volume-badge">
+          <span>トータル挙上重量: 0 kg</span>
+          <span class="diff-badge">前回記録なし</span>
+        </div>
 
         <label>種目名</label>
         <div style="display: flex; gap: 6px; margin-bottom: 12px;">
-          <input type="text" class="ex-name" placeholder="例: ベンチプレス" list="exercise-history" style="margin-bottom:0;">
+          <input type="text" class="ex-name" placeholder="例: ベンチプレス" list="exercise-history" style="margin-bottom:0;" oninput="updateCardTotalVolumes()">
           <button class="secondary sm" style="flex:0 0 auto;" onclick="openCategoryModal('${cardId}')">部位から選択</button>
         </div>
 
@@ -833,7 +875,7 @@
 
     function renameCategoryExercise(oldName) {
       const newName = prompt(`「${oldName}」の新しい種目名を入力してください:`, oldName);
-      if (newName === null) return; // キャンセル
+      if (newName === null) return;
       const trimmed = newName.trim();
       if (!trimmed) {
         alert('種目名が空です。');
@@ -841,12 +883,10 @@
       }
       if (trimmed === oldName) return;
 
-      // リネームマッピングを保存
       let renames = getRenamedCategoryExercises();
       renames[oldName] = trimmed;
       localStorage.setItem('renamed_category_exercises', JSON.stringify(renames));
 
-      // 過去の保存済みレコード（workout_records）の種目名も一括更新
       let records = JSON.parse(localStorage.getItem('workout_records') || '[]');
       let updatedRecords = false;
       records.forEach(r => {
@@ -859,7 +899,6 @@
         localStorage.setItem('workout_records', JSON.stringify(records));
       }
 
-      // 下書き（workout_drafts）の種目名も更新
       let drafts = JSON.parse(localStorage.getItem('workout_drafts') || '{}');
       let updatedDrafts = false;
       Object.keys(drafts).forEach(date => {
@@ -903,12 +942,10 @@
       const deletedItems = getDeletedCategoryExercises();
       const renames = getRenamedCategoryExercises();
 
-      // 統合＆リネーム適用
       let combinedExercises = [...new Set([...defaultItems, ...savedCategoryExercises])].map(ex => {
         return renames[ex] || ex;
       });
 
-      // 重複排除＆削除済みのものを除外
       combinedExercises = [...new Set(combinedExercises)].filter(exName => !deletedItems.includes(exName));
 
       if (combinedExercises.length === 0) {
