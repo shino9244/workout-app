@@ -1,1124 +1,1214 @@
 <!DOCTYPE html>
-<html lang="ja" class="h-full">
+<html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FlowCraft - レスポンシブ フローチャート ビルダー</title>
-    <link rel="manifest" href="manifest.json">
-    <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js');
-      }
-    </script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        body, html {
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-            overflow: hidden;
-            width: 100%;
-            height: 100%;
-        }
-        #canvas-container {
-            touch-action: none;
-        }
-        .canvas-grid {
-            background-size: 20px 20px;
-            background-image: radial-gradient(circle, #cbd5e1 1.2px, transparent 1.2px);
-        }
-        ::-webkit-scrollbar {
-            width: 4px;
-            height: 4px;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 2px;
-        }
-        .shape-parallelogram {
-            transform: skewX(-15deg);
-        }
-        .shape-parallelogram-content {
-            transform: skewX(15deg);
-        }
-        .node-element.is-dragging {
-            transform: scale(1.02);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            z-index: 50 !important;
-        }
-        .node-element.is-selected {
-            box-shadow: 0 0 0 4px #6366f1, 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-            z-index: 20 !important;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>筋トレ記録 App Complete</title>
+  <link rel="manifest" href="manifest.json">
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 16px;
+      padding-bottom: 240px;
+      background: var(--bg);
+      color: var(--text);
+      max-width: 650px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    h1 { font-size: 1.4rem; text-align: center; margin: 12px 0 20px 0; color: var(--primary); }
+    h2 { font-size: 1.05rem; margin: 0 0 12px 0; display: flex; align-items: center; justify-content: space-between; }
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px; }
+    input, select, textarea {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      background: #f8fafc;
+      font-family: inherit;
+    }
+    textarea { resize: vertical; min-height: 60px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    
+    .checkbox-group {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+      background: #f8fafc;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .checkbox-label input { width: auto; margin-bottom: 0; }
+
+    .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+    button {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 8px;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    button.secondary { background: #e2e8f0; color: var(--text); }
+    button.danger { background: #ef4444; color: #fff; }
+    button.sm { padding: 4px 8px; font-size: 0.75rem; }
+
+    .fixed-timer-card {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 650px;
+      margin-bottom: 0;
+      border-radius: var(--radius) var(--radius) 0 0;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+      z-index: 1000;
+    }
+
+    .timer-display {
+      font-size: 1.5rem;
+      font-weight: bold;
+      text-align: center;
+      margin: 4px 0;
+      font-family: monospace;
+      color: var(--primary);
+    }
+
+    .exercise-card {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+      position: relative;
+    }
+    .exercise-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 4px;
+    }
+
+    .total-volume-badge {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--primary);
+      background: #eff6ff;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid #bfdbfe;
+      margin-bottom: 8px;
+      display: inline-block;
+    }
+
+    .set-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      background: #ffffff;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .set-row span { font-weight: bold; font-size: 0.85rem; min-width: 45px; }
+    .set-row input { margin-bottom: 0; background: #fff; }
+
+    .chart-container { position: relative; width: 100%; height: 240px; }
+
+    /* モーダルスタイル */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background: #fff;
+      padding: 20px;
+      border-radius: var(--radius);
+      width: 90%;
+      max-width: 500px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .tab-buttons { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; }
+    .tab-buttons button { flex: none; font-size: 0.8rem; padding: 6px 10px; }
+    .tab-buttons button.active { background: var(--primary); color: #fff; }
+    
+    .category-exercise-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .history-item { border-bottom: 1px solid var(--border); padding: 12px 0; font-size: 0.85rem; }
+    .history-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+
+    /* 履歴テーブル用スタイル */
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      margin-bottom: 6px;
+      font-size: 0.8rem;
+    }
+    .history-table th, .history-table td {
+      border: 1px solid var(--border);
+      padding: 6px;
+      text-align: center;
+    }
+    .history-table th {
+      background-color: #f1f5f9;
+      color: var(--text-muted);
+    }
+  </style>
 </head>
-<body class="h-full w-full bg-slate-100 text-slate-800 flex flex-col font-sans select-none overflow-hidden">
+<body>
 
-    <!-- モバイル最適化メニューバー -->
-    <header class="bg-white border-b border-slate-200 px-2 py-1.5 sm:px-4 sm:py-2.5 flex items-center justify-between z-20 shrink-0 shadow-sm gap-2 overflow-x-auto">
-        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <div class="bg-indigo-600 text-white p-1.5 sm:p-2 rounded-xl flex items-center justify-center shadow-md shadow-indigo-100">
-                <i data-lucide="git-fork" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-            </div>
-            <div class="hidden md:block">
-                <h1 class="text-sm sm:text-base font-bold leading-none text-slate-800">FlowCraft</h1>
-            </div>
-        </div>
+  <h1>🏋️ 筋トレ記録 App Complete</h1>
 
-        <!-- プロジェクト管理UI -->
-        <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
-            <i data-lucide="folder-open" class="w-3.5 h-3.5 text-slate-500 ml-1 hidden sm:inline"></i>
-            <select id="project-select" class="bg-transparent text-xs font-medium text-slate-700 focus:outline-none cursor-pointer max-w-[90px] xs:max-w-[120px] sm:max-w-[160px] truncate"></select>
-            <button id="btn-add-project" class="p-1 hover:bg-white rounded-lg text-slate-600 transition-colors" title="新規プロジェクト">
-                <i data-lucide="plus" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
-            </button>
-            <button id="btn-duplicate-project" class="p-1 hover:bg-white rounded-lg text-slate-600 transition-colors" title="プロジェクト複製">
-                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-            </button>
-            <button id="btn-rename-project" class="p-1 hover:bg-white rounded-lg text-slate-600 transition-colors" title="名称変更">
-                <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
-            </button>
-            <button id="btn-delete-project" class="p-1 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-lg transition-colors" title="削除">
-                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-            </button>
-        </div>
+  <div class="card" style="text-align: center;">
+    <h2>🔄 データの共有・バックアップ</h2>
+    <div class="btn-group">
+      <button class="secondary sm" onclick="exportData()">データを書き出す (エクスポート)</button>
+      <button class="secondary sm" onclick="document.getElementById('import-file').click()">データを読み込む (インポート)</button>
+      <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)">
+    </div>
+  </div>
 
-        <div class="flex items-center gap-1 shrink-0">
-            <!-- 自動整列ボタン -->
-            <button id="btn-auto-layout" class="p-1.5 sm:px-2.5 sm:py-2 bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-medium flex items-center gap-1 transition-all" title="自動整列">
-                <i data-lucide="layout-grid" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
-                <span class="hidden sm:inline">自動整列</span>
-            </button>
-            <div class="h-4 w-px bg-slate-200 mx-0.5"></div>
-            <button id="btn-delete-selected" disabled class="p-1.5 sm:px-3 sm:py-2 bg-rose-50 border border-rose-200 text-rose-600 rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-rose-100 active:bg-rose-200 disabled:opacity-40 disabled:pointer-events-none transition-all" title="選択要素を削除">
-                <i data-lucide="trash-2" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
-                <span class="hidden lg:inline">選択削除</span>
-            </button>
-            <div class="h-4 w-px bg-slate-200 mx-0.5"></div>
-            <button id="btn-undo" class="p-1.5 sm:p-2 text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-30 transition-colors" title="元に戻す">
-                <i data-lucide="undo-2" class="w-4 h-4"></i>
-            </button>
-            <button id="btn-redo" class="p-1.5 sm:p-2 text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-30 transition-colors" title="やり直す">
-                <i data-lucide="redo-2" class="w-4 h-4"></i>
-            </button>
-            <div class="h-4 w-px bg-slate-200 mx-0.5"></div>
-            <button id="btn-clear-all" class="p-1.5 sm:p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="キャンバス消去">
-                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-            </button>
-            <div class="h-4 w-px bg-slate-200 mx-0.5"></div>
-            <div class="relative group">
-                <button class="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white p-1.5 sm:px-3 sm:py-2 rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition-colors">
-                    <i data-lucide="download" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
-                    <span class="hidden sm:inline">保存</span>
-                    <i data-lucide="chevron-down" class="w-3 h-3"></i>
-                </button>
-                <div class="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 hidden group-hover:block group-focus-within:block z-50">
-                    <button id="export-png" class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                        <i data-lucide="image" class="w-3.5 h-3.5 text-emerald-500"></i> PNG画像保存
-                    </button>
-                    <div class="border-t border-slate-100 my-1"></div>
-                    <button id="export-json" class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                        <i data-lucide="file-json" class="w-3.5 h-3.5 text-indigo-500"></i> JSON保存
-                    </button>
-                    <label class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer">
-                        <i data-lucide="upload" class="w-3.5 h-3.5 text-sky-500"></i> JSON読み込み
-                        <input type="file" id="import-json" accept=".json" class="hidden">
-                    </label>
-                </div>
-            </div>
-        </div>
-    </header>
+  <!-- 1. カレンダー ＆ 日別記録基本情報 -->
+  <div class="card">
+    <h2>📅 日付・コンディション・経過時間</h2>
+    <div class="grid-2">
+      <div>
+        <label>日付選択</label>
+        <input type="date" id="workout-date" onchange="onDateChange()">
+      </div>
+      <div>
+        <label>本日の体重 (kg)</label>
+        <input type="number" step="0.1" id="daily-weight" placeholder="例: 65.5" onchange="saveDailyWeight()">
+      </div>
+    </div>
+    <div style="margin-top: 4px;">
+      <label>本日のトレーニング経過時間 (タイマーと連動中)</label>
+      <input type="text" id="daily-elapsed-time" placeholder="00:00:00" onchange="saveDailyElapsedTime()">
+    </div>
+  </div>
 
-    <div class="flex-1 flex relative overflow-hidden">
-        <aside class="hidden md:flex flex-col w-64 bg-white border-r border-slate-200 p-4 shrink-0 shadow-sm z-10 gap-4 overflow-y-auto">
-            <div>
-                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">ノードの追加</h2>
-                <div class="grid grid-cols-2 gap-2.5">
-                    <button class="add-node-btn flex flex-col items-center justify-center p-2.5 border border-slate-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50/50 transition-all text-slate-700 group" data-type="oval">
-                        <div class="w-10 h-6 border-2 border-emerald-500 rounded-full bg-white group-hover:scale-105 transition-transform"></div>
-                        <span class="text-xs mt-2 font-medium">開始 / 終了</span>
-                    </button>
-                    <button class="add-node-btn flex flex-col items-center justify-center p-2.5 border border-slate-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50/50 transition-all text-slate-700 group" data-type="rectangle">
-                        <div class="w-10 h-6 border-2 border-indigo-500 rounded bg-white group-hover:scale-105 transition-transform"></div>
-                        <span class="text-xs mt-2 font-medium">処理 (四角)</span>
-                    </button>
-                    <button class="add-node-btn flex flex-col items-center justify-center p-2.5 border border-slate-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50/50 transition-all text-slate-700 group" data-type="diamond">
-                        <div class="w-6 h-6 border-2 border-amber-500 rotate-45 bg-white group-hover:scale-105 transition-transform"></div>
-                        <span class="text-xs mt-2 font-medium">判断 (ひし形)</span>
-                    </button>
-                    <button class="add-node-btn flex flex-col items-center justify-center p-2.5 border border-slate-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50/50 transition-all text-slate-700 group" data-type="parallelogram">
-                        <div class="w-10 h-6 border-2 border-sky-500 -skew-x-12 bg-white group-hover:scale-105 transition-transform"></div>
-                        <span class="text-xs mt-2 font-medium">データ</span>
-                    </button>
-                    <button class="add-node-btn flex flex-col items-center justify-center p-2.5 border border-slate-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50/50 transition-all text-slate-700 group" data-type="group">
-                        <div class="w-10 h-6 border-2 border-dashed border-slate-400 rounded bg-slate-50 group-hover:scale-105 transition-transform"></div>
-                        <span class="text-xs mt-2 font-medium">グループ枠</span>
-                    </button>
-                    <button class="add-node-btn flex flex-col items-center justify-center p-2.5 border border-slate-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50/50 transition-all text-slate-700 group" data-type="note">
-                        <i data-lucide="sticky-note" class="w-5 h-5 text-purple-500"></i>
-                        <span class="text-xs mt-2 font-medium">メモ</span>
-                    </button>
-                </div>
-            </div>
-            <hr class="border-slate-100">
-            <div>
-                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">操作ガイド</h2>
-                <ul class="text-xs text-slate-500 space-y-2">
-                    <li class="flex items-start gap-1.5"><i data-lucide="pointer" class="w-3.5 h-3.5 mt-0.5 text-indigo-500 shrink-0"></i> <span><b>選択</b>: ノード/接続線をクリック</span></li>
-                    <li class="flex items-start gap-1.5"><i data-lucide="move" class="w-3.5 h-3.5 mt-0.5 text-indigo-500 shrink-0"></i> <span><b>移動</b>: ノード内をドラッグ</span></li>
-                    <li class="flex items-start gap-1.5"><i data-lucide="box" class="w-3.5 h-3.5 mt-0.5 text-indigo-500 shrink-0"></i> <span><b>グループ</b>: グループ枠を動かすと中身も連動移動</span></li>
-                    <li class="flex items-start gap-1.5"><i data-lucide="layout-grid" class="w-3.5 h-3.5 mt-0.5 text-indigo-500 shrink-0"></i> <span><b>整列</b>: 上部「自動整列」ボタンで綺麗に配置</span></li>
-                </ul>
-            </div>
-        </aside>
+  <!-- 2. トレーニングメニュー記録 -->
+  <div class="card" id="form-card">
+    <h2>📝 本日のトレーニングメニュー</h2>
+    <datalist id="exercise-history"></datalist>
 
-        <main class="flex-1 relative h-full w-full bg-slate-50 canvas-grid overflow-hidden cursor-grab active:cursor-grabbing" id="canvas-container">
-            <svg id="svg-layer" class="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
-                <defs>
-                    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
-                    </marker>
-                    <marker id="arrow-selected" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#4f46e5" />
-                    </marker>
-                </defs>
-                <g id="svg-group"></g>
-                <path id="temp-connection" stroke="#4f46e5" stroke-width="2.5" stroke-dasharray="5,5" fill="none" marker-end="url(#arrow-selected)" class="hidden"></path>
-            </svg>
-            <div id="nodes-container" class="absolute top-0 left-0 w-full h-full pointer-events-none z-10 origin-top-left"></div>
+    <div id="exercises-container" oninput="saveDraft()" onchange="saveDraft()"></div>
 
-            <div class="md:hidden absolute bottom-20 right-4 z-30 flex flex-col items-end gap-2">
-                <div id="mobile-palette" class="bg-white p-2 rounded-2xl shadow-xl border border-slate-200 flex flex-col gap-1.5 transition-all duration-200 scale-0 origin-bottom-right hidden">
-                    <button class="add-node-btn p-2.5 bg-emerald-50 text-emerald-700 rounded-xl flex items-center gap-2 font-medium text-xs" data-type="oval">
-                        <div class="w-4 h-2.5 border border-emerald-600 rounded-full"></div> 開始 / 終了
-                    </button>
-                    <button class="add-node-btn p-2.5 bg-indigo-50 text-indigo-700 rounded-xl flex items-center gap-2 font-medium text-xs" data-type="rectangle">
-                        <div class="w-4 h-3 border border-indigo-600 rounded"></div> 処理 (四角)
-                    </button>
-                    <button class="add-node-btn p-2.5 bg-amber-50 text-amber-700 rounded-xl flex items-center gap-2 font-medium text-xs" data-type="diamond">
-                        <div class="w-3 h-3 border border-amber-600 rotate-45"></div> 判断 (ひし形)
-                    </button>
-                    <button class="add-node-btn p-2.5 bg-sky-50 text-sky-700 rounded-xl flex items-center gap-2 font-medium text-xs" data-type="parallelogram">
-                        <div class="w-4 h-3 border border-sky-600 -skew-x-12"></div> データ
-                    </button>
-                    <button class="add-node-btn p-2.5 bg-slate-50 text-slate-700 rounded-xl flex items-center gap-2 font-medium text-xs" data-type="group">
-                        <div class="w-4 h-3 border border-dashed border-slate-500 rounded"></div> グループ枠
-                    </button>
-                    <button class="add-node-btn p-2.5 bg-purple-50 text-purple-700 rounded-xl flex items-center gap-2 font-medium text-xs" data-type="note">
-                        <i data-lucide="sticky-note" class="w-4 h-4 text-purple-600"></i> メモ
-                    </button>
-                </div>
-                <button id="btn-toggle-mobile-palette" class="w-12 h-12 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">
-                    <i data-lucide="plus" class="w-6 h-6"></i>
-                </button>
-            </div>
-
-            <div class="absolute bottom-20 left-4 z-20 bg-white border border-slate-200 rounded-xl shadow-lg flex items-center p-1 gap-1">
-                <button id="btn-zoom-out" class="p-2 hover:bg-slate-100 rounded-lg text-slate-600" title="縮小">
-                    <i data-lucide="zoom-out" class="w-4 h-4"></i>
-                </button>
-                <span id="zoom-value" class="text-xs font-semibold px-1.5 text-slate-600 min-w-[3rem] text-center">100%</span>
-                <button id="btn-zoom-in" class="p-2 hover:bg-slate-100 rounded-lg text-slate-600" title="拡大">
-                    <i data-lucide="zoom-in" class="w-4 h-4"></i>
-                </button>
-                <div class="h-4 w-px bg-slate-200 mx-0.5"></div>
-                <button id="btn-zoom-reset" class="p-2 hover:bg-slate-100 rounded-lg text-slate-600" title="表示リセット">
-                    <i data-lucide="maximize-2" class="w-4 h-4"></i>
-                </button>
-            </div>
-        </main>
+    <div class="btn-group" style="margin-bottom: 12px;">
+      <button class="secondary" onclick="addExerciseCard(); saveDraft();">+ 種目を追加</button>
     </div>
 
-    <!-- 編集バー -->
-    <div id="bottom-edit-bar" class="bg-white border-t border-slate-200 p-2 sm:p-3 shadow-lg z-30 transition-transform duration-200 translate-y-full fixed bottom-0 left-0 right-0">
-        <div class="max-w-4xl mx-auto flex items-center gap-2">
-            <select id="bottom-node-type" class="px-2 py-1.5 sm:px-2.5 sm:py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs sm:text-sm bg-white text-slate-700 shrink-0 font-medium cursor-pointer">
-                <option value="oval">開始 / 終了</option>
-                <option value="rectangle">処理 (四角)</option>
-                <option value="diamond">判断 (ひし形)</option>
-                <option value="parallelogram">データ</option>
-                <option value="group">グループ枠</option>
-                <option value="note">メモ</option>
-            </select>
-            <input type="text" id="bottom-node-input" class="flex-1 px-3 py-1.5 sm:px-3.5 sm:py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs sm:text-sm min-w-0" placeholder="ノードのテキスト編集...">
-            <div class="flex items-center gap-1 shrink-0" id="color-palette"></div>
-        </div>
+    <div class="btn-group">
+      <button onclick="saveAllRecords()">この日のメニュー・記録を保存</button>
     </div>
+  </div>
 
-    <script>
-        const MAX_PROJECTS = 30;
-        const state = {
-            projects: [],
-            currentProjectId: null,
-            nodes: [], connections: [], scale: 1, pan: { x: 0, y: 0 },
-            selectedNodeId: null, selectedConnectionId: null,
-            history: [], historyIndex: -1, isConnecting: false, connectingStartNodeId: null
-        };
+  <!-- 3. 種目ボリューム推移グラフ -->
+  <div class="card">
+    <h2>📈 種目ボリューム推移</h2>
+    <label for="chart-exercise-select" style="font-size:0.85rem; font-weight:600; color:var(--text-muted); margin-bottom:4px; display:block;">表示する種目を選択</label>
+    <select id="chart-exercise-select" onchange="updateVolumeChart()">
+      <option value="">記録のある種目が表示されます</option>
+    </select>
+    <div class="chart-container">
+      <canvas id="volumeChart"></canvas>
+    </div>
+  </div>
 
-        const COLORS = [
-            { name: 'Indigo', bg: '#e0e7ff', border: '#6366f1', text: '#3730a3' },
-            { name: 'Emerald', bg: '#d1fae5', border: '#10b981', text: '#065f46' },
-            { name: 'Amber', bg: '#fef3c7', border: '#f59e0b', text: '#92400e' },
-            { name: 'Sky', bg: '#e0f2fe', border: '#0ea5e9', text: '#075985' },
-            { name: 'Purple', bg: '#f3e8ff', border: '#a855f7', text: '#6b21a8' },
-            { name: 'White', bg: '#ffffff', border: '#cbd5e1', text: '#1e293b' }
-        ];
+  <!-- 4. タイマー（画面最下部に固定表示） -->
+  <div class="card fixed-timer-card">
+    <h2 style="font-size: 0.95rem; margin-bottom: 4px;">⏱️ タイマー機能</h2>
+    <div class="grid-2">
+      <div style="text-align: center; border-right: 1px solid var(--border); padding-right: 8px;">
+        <label>経過時間</label>
+        <div class="timer-display" id="stopwatch-display">00:00:00</div>
+        <div class="btn-group" style="margin-bottom: 4px;">
+          <button class="sm secondary" onclick="adjustStopwatch(-300)">-5分</button>
+          <button class="sm secondary" onclick="adjustStopwatch(300)">+5分</button>
+        </div>
+        <div class="btn-group">
+          <button class="sm" onclick="startStopwatch()">開始</button>
+          <button class="sm secondary" onclick="pauseStopwatch()">停止</button>
+          <button class="sm danger" onclick="resetStopwatch()">リセット</button>
+        </div>
+      </div>
+      <div style="text-align: center; padding-left: 8px;">
+        <label>インターバル</label>
+        <div class="timer-display" id="interval-display">02:00</div>
+        <div class="btn-group" style="margin-bottom: 4px;">
+          <button class="sm secondary" onclick="adjustInterval(-10)">-10秒</button>
+          <button class="sm secondary" onclick="adjustInterval(10)">+10秒</button>
+          <button class="sm danger" onclick="resetInterval()">リセット</button>
+        </div>
+        <div class="btn-group">
+          <button class="sm" onclick="startInterval()">スタート</button>
+          <button class="sm secondary" onclick="pauseInterval()">一時停止</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-        const container = document.getElementById('canvas-container');
-        const nodesContainer = document.getElementById('nodes-container');
-        const svgGroup = document.getElementById('svg-group');
-        const tempConnection = document.getElementById('temp-connection');
-        const zoomValueEl = document.getElementById('zoom-value');
-        const bottomEditBar = document.getElementById('bottom-edit-bar');
-        const bottomNodeInput = document.getElementById('bottom-node-input');
-        const bottomNodeType = document.getElementById('bottom-node-type');
-        const btnDeleteSelected = document.getElementById('btn-delete-selected');
-        const projectSelect = document.getElementById('project-select');
+  <!-- 部位別種目選択モーダル -->
+  <div class="modal" id="categoryModal">
+    <div class="modal-content">
+      <h2>部位別種目選択</h2>
+      <div class="tab-buttons" id="categoryTabs"></div>
+      <div id="categoryExerciseList"></div>
+      <button class="secondary" style="margin-top: 12px; width: 100%;" onclick="closeCategoryModal()">閉じる</button>
+    </div>
+  </div>
 
-        let lastTapTime = 0;
-        let isDoubleTapDragging = false;
-        let doubleTapStartY = 0;
-        let startScaleForDoubleTap = 1;
-        let zoomCenter = { x: 0, y: 0 };
+  <!-- 過去記録（時系列）表示モーダル -->
+  <div class="modal" id="historyModal">
+    <div class="modal-content">
+      <h2 id="historyModalTitle">過去の記録</h2>
+      <div style="margin-bottom: 8px; text-align: right;">
+        <button class="secondary sm" style="width: auto;" onclick="toggleHistorySort()">昇順/降順 切替</button>
+      </div>
+      <div id="historyList"></div>
+      <button class="secondary" style="margin-top: 12px; width: 100%;" onclick="closeHistoryModal()">閉じる</button>
+    </div>
+  </div>
 
-        function init() {
-            lucide.createIcons();
-            setupColorPalette();
-            setupEventListeners();
-            initProjectManager();
-            render();
+  <script>
+    let volumeChartInstance = null;
+    let exerciseCardCounter = 0;
+    let activeCardIdForCategory = null;
+    let activeCardIdForHistory = null;
+    let currentHistoryExercise = '';
+    let isHistoryAsc = false;
+    let currentActiveCategory = "胸";
+
+    // モーダル外タップ時にモーダルを閉じるイベント
+    window.addEventListener('click', (e) => {
+      const historyModal = document.getElementById('historyModal');
+      const categoryModal = document.getElementById('categoryModal');
+      if (e.target === historyModal) closeHistoryModal();
+      if (e.target === categoryModal) closeCategoryModal();
+    });
+
+    // 通知の初回許可リクエスト
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    // 効果音再生
+    function playAlarmSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.8);
+      } catch (e) {
+        console.log('Audio playback error:', e);
+      }
+    }
+
+    // 部位別プリセット種目リスト
+    const presetExercises = {
+      "胸": ["ベンチプレス", "インクラインベンチプレス", "ダンベルフライ", "チェストプレス", "ディップス", "プッシュアップ"],
+      "背中": ["デッドリフト", "ラットプルダウン", "ベントオーバーローing", "シーテッドローイング", "懸垂(チンニング)"],
+      "肩": ["ショルダープレス", "サイドレイズ", "フロントレイズ", "リアレイズ", "アップライトロー"],
+      "腕": ["バーベルカール", "ダンベルカール", "インクラインカール", "ライイング・トリセプス・エクステンション", "ケーブルプレスダウン"],
+      "脚": ["スクワット", "レッグプレス", "レッグエクステンション", "レッグカール", "ブルガリアンスクワット", "カーフレイズ"],
+      "腹": ["クランチ", "レッグレイズ", "アブローラー", "プランク"],
+      "お尻": ["ヒップスラスト", "ブルガリアンスクワット", "ヒップアブダクション"]
+    };
+
+    document.getElementById('workout-date').value = new Date().toISOString().substring(0, 10);
+
+    function onDateChange() {
+      loadDailyWeight();
+      loadDailyElapsedTime();
+      loadDayRecords();
+      updateExerciseDatalist();
+    }
+
+    // --- 日別体重・経過時間管理 ---
+    function saveDailyWeight() {
+      const date = document.getElementById('workout-date').value;
+      const weight = document.getElementById('daily-weight').value;
+      let weights = JSON.parse(localStorage.getItem('daily_weights') || '{}');
+      if (weight) weights[date] = weight; else delete weights[date];
+      localStorage.setItem('daily_weights', JSON.stringify(weights));
+    }
+
+    function loadDailyWeight() {
+      const date = document.getElementById('workout-date').value;
+      const weights = JSON.parse(localStorage.getItem('daily_weights') || '{}');
+      document.getElementById('daily-weight').value = weights[date] || '';
+    }
+
+    function saveDailyElapsedTime() {
+      const date = document.getElementById('workout-date').value;
+      const time = document.getElementById('daily-elapsed-time').value;
+      let times = JSON.parse(localStorage.getItem('daily_elapsed_times') || '{}');
+      if (time) times[date] = time; else delete times[date];
+      localStorage.setItem('daily_elapsed_times', JSON.stringify(times));
+    }
+
+    function loadDailyElapsedTime() {
+      const date = document.getElementById('workout-date').value;
+      const times = JSON.parse(localStorage.getItem('daily_elapsed_times') || '{}');
+      const time = times[date] || '';
+      document.getElementById('daily-elapsed-time').value = time;
+      
+      if (time && !swTimer) {
+        const parts = time.split(':').map(Number);
+        if (parts.length === 3 && !parts.some(isNaN)) {
+          swAccumulatedSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+          document.getElementById('stopwatch-display').textContent = time;
+        }
+      } else if (!time && !swTimer && swAccumulatedSeconds === 0) {
+        document.getElementById('stopwatch-display').textContent = '00:00:00';
+      }
+    }
+
+    // --- 経過時間タイマー（絶対時刻比較型） ---
+    let swTimer = null;
+    let swAccumulatedSeconds = 0;
+    let swStartTime = null;
+
+    function getSwElapsedSeconds() {
+      if (!swStartTime) return swAccumulatedSeconds;
+      return swAccumulatedSeconds + Math.floor((Date.now() - swStartTime) / 1000);
+    }
+
+    function renderStopwatchDisplay() {
+      const totalSec = getSwElapsedSeconds();
+      const hrs = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+      const mins = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+      const secs = String(totalSec % 60).padStart(2, '0');
+      const timeStr = `${hrs}:${mins}:${secs}`;
+      document.getElementById('stopwatch-display').textContent = timeStr;
+      document.getElementById('daily-elapsed-time').value = timeStr;
+      saveDailyElapsedTime();
+    }
+
+    function updateStopwatch() {
+      renderStopwatchDisplay();
+    }
+
+    function startStopwatch() {
+      if (swTimer) return;
+      swStartTime = Date.now();
+      swTimer = setInterval(updateStopwatch, 500);
+    }
+
+    function pauseStopwatch() {
+      if (swTimer) {
+        swAccumulatedSeconds = getSwElapsedSeconds();
+        swStartTime = null;
+        clearInterval(swTimer);
+        swTimer = null;
+        renderStopwatchDisplay();
+      }
+    }
+
+    function resetStopwatch() {
+      pauseStopwatch();
+      swAccumulatedSeconds = 0;
+      swStartTime = null;
+      renderStopwatchDisplay();
+    }
+
+    function adjustStopwatch(sec) {
+      if (swTimer) {
+        swAccumulatedSeconds = Math.max(0, getSwElapsedSeconds() + sec);
+        swStartTime = Date.now();
+      } else {
+        swAccumulatedSeconds = Math.max(0, swAccumulatedSeconds + sec);
+      }
+      renderStopwatchDisplay();
+    }
+
+    // --- インターバルタイマー（絶対時刻比較型） ---
+    let intTimer = null;
+    let intDefaultSeconds = 120;
+    let intRemainingSeconds = 120;
+    let intEndTime = null;
+
+    function renderIntervalDisplay() {
+      const mins = String(Math.floor(intRemainingSeconds / 60)).padStart(2, '0');
+      const secs = String(intRemainingSeconds % 60).padStart(2, '0');
+      document.getElementById('interval-display').textContent = `${mins}:${secs}`;
+    }
+
+    function updateInterval() {
+      if (!intEndTime) return;
+      const now = Date.now();
+      intRemainingSeconds = Math.max(0, Math.ceil((intEndTime - now) / 1000));
+      renderIntervalDisplay();
+
+      if (intRemainingSeconds <= 0) {
+        pauseInterval();
+        playAlarmSound();
+
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('⏰ インターバル終了！', {
+            body: '次のセットを開始してください。',
+            tag: 'interval-timer'
+          });
+        } else {
+          alert('⏰ インターバル終了です！');
+        }
+      }
+    }
+
+    function startInterval() {
+      if (intTimer) clearInterval(intTimer);
+      intEndTime = Date.now() + intRemainingSeconds * 1000;
+      intTimer = setInterval(updateInterval, 500);
+    }
+
+    function pauseInterval() {
+      if (intTimer) {
+        const now = Date.now();
+        intRemainingSeconds = Math.max(0, Math.ceil((intEndTime - now) / 1000));
+        clearInterval(intTimer);
+        intTimer = null;
+        intEndTime = null;
+        renderIntervalDisplay();
+      }
+    }
+
+    function resetInterval() {
+      pauseInterval();
+      intRemainingSeconds = intDefaultSeconds;
+      renderIntervalDisplay();
+    }
+
+    function adjustInterval(sec) {
+      intRemainingSeconds = Math.max(0, intRemainingSeconds + sec);
+      if (intTimer && intEndTime) {
+        intEndTime += sec * 1000;
+      }
+      renderIntervalDisplay();
+    }
+
+    // アプリ（Webページ）復元・復帰時の同期処理
+    function syncAppState() {
+      if (swTimer) updateStopwatch();
+      if (intTimer) updateInterval();
+      saveDraft();
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) syncAppState();
+      else saveDraft();
+    });
+
+    window.addEventListener('focus', syncAppState);
+
+    function onRepsInputComplete() {
+      resetInterval();
+      startInterval();
+    }
+
+    // --- 下書き（ドラフト）自動保存・復元処理 ---
+    function getCurrentFormState() {
+      const cards = document.querySelectorAll('#exercises-container .exercise-card');
+      const cardDatas = [];
+      cards.forEach(card => {
+        const exercise = card.querySelector('.ex-name').value;
+        const primaryTarget = card.querySelector('.ex-primary').value;
+        const memo = card.querySelector('.ex-memo').value;
+
+        const secondaryCheckBoxes = card.querySelectorAll('.ex-secondary-group input[type="checkbox"]:checked');
+        const secondaryTargets = Array.from(secondaryCheckBoxes).map(cb => cb.value);
+
+        const weightInputs = card.querySelectorAll('.set-weight');
+        const repsInputs = card.querySelectorAll('.set-reps');
+        let sets = [];
+
+        for (let j = 0; j < weightInputs.length; j++) {
+          sets.push({
+            weight: weightInputs[j].value,
+            reps: repsInputs[j].value
+          });
         }
 
-        function generateId() { return 'id_' + Math.random().toString(36).substr(2, 9); }
+        cardDatas.push({
+          exercise,
+          primaryTarget,
+          secondaryTargets,
+          memo,
+          sets
+        });
+      });
+      return cardDatas;
+    }
 
-        function initProjectManager() {
-            const savedProjects = localStorage.getItem('flowcraft_projects');
-            if (savedProjects) {
-                try {
-                    state.projects = JSON.parse(savedProjects);
-                } catch (e) { state.projects = []; }
-            }
+    function saveDraft() {
+      const date = document.getElementById('workout-date').value;
+      if (!date) return;
+      const state = getCurrentFormState();
+      if (state.length === 0) return;
+      const drafts = JSON.parse(localStorage.getItem('workout_drafts') || '{}');
+      drafts[date] = state;
+      localStorage.setItem('workout_drafts', JSON.stringify(drafts));
+      updateCardTotalVolumes();
+    }
 
-            if (!state.projects || state.projects.length === 0) {
-                const defaultProj = { id: generateId(), name: 'メインフローチャート', data: null };
-                state.projects = [defaultProj];
-            }
+    function clearDraft(date) {
+      const drafts = JSON.parse(localStorage.getItem('workout_drafts') || '{}');
+      delete drafts[date];
+      localStorage.setItem('workout_drafts', JSON.stringify(drafts));
+    }
 
-            const activeProjId = localStorage.getItem('flowcraft_active_project') || state.projects[0].id;
-            switchProject(activeProjId, false);
-            updateProjectSelectUI();
+    // --- トータル挙上重量のリアルタイム計算・更新 ---
+    function updateCardTotalVolumes() {
+      const cards = document.querySelectorAll('#exercises-container .exercise-card');
+      cards.forEach(card => {
+        const weightInputs = card.querySelectorAll('.set-weight');
+        const repsInputs = card.querySelectorAll('.set-reps');
+        let total = 0;
+
+        for (let j = 0; j < weightInputs.length; j++) {
+          const w = parseFloat(weightInputs[j].value) || 0;
+          const r = parseInt(repsInputs[j].value) || 0;
+          total += w * r;
         }
 
-        function saveProjectsToStorage() {
-            localStorage.setItem('flowcraft_projects', JSON.stringify(state.projects));
-            localStorage.setItem('flowcraft_active_project', state.currentProjectId);
+        const badge = card.querySelector('.total-volume-badge');
+        if (badge) {
+          badge.textContent = `トータル挙上重量: ${total.toLocaleString()} kg`;
         }
+      });
+    }
 
-        function updateProjectSelectUI() {
-            projectSelect.innerHTML = '';
-            state.projects.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.id;
-                opt.textContent = p.name;
-                if (p.id === state.currentProjectId) opt.selected = true;
-                projectSelect.appendChild(opt);
-            });
-        }
+    // --- 種目カード動的追加 ---
+    function addExerciseCard(data = null) {
+      exerciseCardCounter++;
+      const cardId = `ex-card-${exerciseCardCounter}`;
+      const container = document.getElementById('exercises-container');
 
-        function switchProject(projectId, shouldSaveCurrent = true) {
-            if (shouldSaveCurrent && state.currentProjectId) {
-                const cur = state.projects.find(p => p.id === state.currentProjectId);
-                if (cur) cur.data = { nodes: state.nodes, connections: state.connections };
-            }
+      const card = document.createElement('div');
+      card.className = 'exercise-card';
+      card.id = cardId;
 
-            state.currentProjectId = projectId;
-            const target = state.projects.find(p => p.id === projectId) || state.projects[0];
-            state.currentProjectId = target.id;
+      card.innerHTML = `
+        <div class="exercise-card-header">
+          <strong class="card-title-text">種目 #${container.children.length + 1}</strong>
+          <div style="display: flex; gap: 4px;">
+            <button class="secondary sm" onclick="moveExerciseCard('${cardId}', 'up')">▲ 上へ</button>
+            <button class="secondary sm" onclick="moveExerciseCard('${cardId}', 'down')">▼ 下へ</button>
+            <button class="danger sm" onclick="removeExerciseCard('${cardId}')">削除</button>
+          </div>
+        </div>
+        
+        <div class="total-volume-badge">トータル挙上重量: 0 kg</div>
 
-            if (target.data) {
-                state.nodes = target.data.nodes || [];
-                state.connections = target.data.connections || [];
-            } else {
-                state.nodes = [];
-                state.connections = [];
-                createDefaultFlowchart();
-            }
+        <label>種目名</label>
+        <div style="display: flex; gap: 6px; margin-bottom: 12px;">
+          <input type="text" class="ex-name" placeholder="例: ベンチプレス" list="exercise-history" style="margin-bottom:0;">
+          <button class="secondary sm" style="flex:0 0 auto;" onclick="openCategoryModal('${cardId}')">部位から選択</button>
+        </div>
 
-            state.selectedNodeId = null;
-            state.selectedConnectionId = null;
-            state.history = [];
-            state.historyIndex = -1;
-            saveState();
-            saveProjectsToStorage();
-            updateProjectSelectUI();
-            render();
-        }
+        <div class="btn-group" style="margin-bottom: 12px;">
+          <button class="secondary sm" onclick="openHistoryModal('${cardId}')">📜 過去の記録（時系列）</button>
+        </div>
 
-        document.getElementById('btn-add-project').onclick = () => {
-            if (state.projects.length >= MAX_PROJECTS) {
-                alert(`作成できるプロジェクトは最大${MAX_PROJECTS}個までです。`);
-                return;
-            }
-            const name = prompt('新しいプロジェクト名を入力してください:', `プロジェクト ${state.projects.length + 1}`);
-            if (name) {
-                const newProj = { id: generateId(), name: name.trim(), data: null };
-                state.projects.push(newProj);
-                switchProject(newProj.id, true);
-            }
-        };
+        <div>
+          <label>主部位 (メイン・必須)</label>
+          <select class="ex-primary">
+            <option value="">選択してください</option>
+            <option value="胸">胸</option>
+            <option value="背中">背中</option>
+            <option value="肩">肩</option>
+            <option value="腕">腕</option>
+            <option value="脚">脚</option>
+            <option value="腹">腹</option>
+            <option value="お尻">お尻</option>
+          </select>
+        </div>
 
-        document.getElementById('btn-duplicate-project').onclick = () => {
-            if (state.projects.length >= MAX_PROJECTS) {
-                alert(`作成できるプロジェクトは最大${MAX_PROJECTS}個までです。`);
-                return;
-            }
-            const cur = state.projects.find(p => p.id === state.currentProjectId);
-            if (!cur) return;
+        <label>副部位 (サブ・複数選択可)</label>
+        <div class="checkbox-group ex-secondary-group">
+          <label class="checkbox-label"><input type="checkbox" value="胸"> 胸</label>
+          <label class="checkbox-label"><input type="checkbox" value="背中"> 背中</label>
+          <label class="checkbox-label"><input type="checkbox" value="肩"> 肩</label>
+          <label class="checkbox-label"><input type="checkbox" value="腕"> 腕</label>
+          <label class="checkbox-label"><input type="checkbox" value="脚"> 脚</label>
+          <label class="checkbox-label"><input type="checkbox" value="腹"> 腹</label>
+          <label class="checkbox-label"><input type="checkbox" value="お尻"> お尻</label>
+        </div>
 
-            const duplicateName = prompt('複製プロジェクト名を入力してください:', `${cur.name} のコピー`);
-            if (duplicateName) {
-                const clonedNodes = JSON.parse(JSON.stringify(state.nodes));
-                const clonedConnections = JSON.parse(JSON.stringify(state.connections));
-                
-                const newProj = {
-                    id: generateId(),
-                    name: duplicateName.trim(),
-                    data: { nodes: clonedNodes, connections: clonedConnections }
-                };
-                state.projects.push(newProj);
-                switchProject(newProj.id, true);
-            }
-        };
+        <label>メモ</label>
+        <textarea class="ex-memo" placeholder="例: フォームを意識、最終セット浅め"></textarea>
 
-        document.getElementById('btn-rename-project').onclick = () => {
-            const cur = state.projects.find(p => p.id === state.currentProjectId);
-            if (!cur) return;
-            const newName = prompt('プロジェクト名を変更:', cur.name);
-            if (newName && newName.trim()) {
-                cur.name = newName.trim();
-                saveProjectsToStorage();
-                updateProjectSelectUI();
-            }
-        };
+        <label>セット詳細 (重量 kg / 回数 reps)</label>
+        <div class="sets-container"></div>
+        
+        <div class="btn-group" style="margin-top: 8px;">
+          <button class="secondary sm" onclick="addSetRowToCard('${cardId}'); saveDraft();">+ セット追加</button>
+          <button class="secondary danger sm" onclick="removeSetRowFromCard('${cardId}'); saveDraft();">- セット削除</button>
+        </div>
+      `;
 
-        document.getElementById('btn-delete-project').onclick = () => {
-            if (state.projects.length <= 1) {
-                alert('これ以上プロジェクトを削除できません (最低1つ必要です)。');
-                return;
-            }
-            const cur = state.projects.find(p => p.id === state.currentProjectId);
-            if (confirm(`プロジェクト「${cur.name}」を削除してもよろしいですか？`)) {
-                state.projects = state.projects.filter(p => p.id !== state.currentProjectId);
-                switchProject(state.projects[0].id, false);
-            }
-        };
+      container.appendChild(card);
 
-        projectSelect.onchange = (e) => {
-            switchProject(e.target.value, true);
-        };
-
-        function createDefaultFlowchart() {
-            const startNode = createNode('oval', 140, 100, '処理開始', 1);
-            const dataNode = createNode('parallelogram', 140, 210, '入力データ読込', 3);
-            const processNode = createNode('rectangle', 140, 320, 'データ処理を実行', 0);
-            const decisionNode = createNode('diamond', 140, 440, '正常完了?', 2);
-            const endNode = createNode('oval', 140, 570, '終了', 1);
-
-            state.connections.push(
-                { id: generateId(), from: startNode.id, to: dataNode.id },
-                { id: generateId(), from: dataNode.id, to: processNode.id },
-                { id: generateId(), from: processNode.id, to: decisionNode.id },
-                { id: generateId(), from: decisionNode.id, to: endNode.id }
-            );
-        }
-
-        function setupColorPalette() {
-            const colorPaletteContainer = document.getElementById('color-palette');
-            colorPaletteContainer.innerHTML = '';
-            COLORS.forEach((color, idx) => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = `w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 transition-all color-btn flex items-center justify-center`;
-                btn.style.backgroundColor = color.bg;
-                btn.style.borderColor = color.border;
-                btn.onclick = () => selectColorInPalette(idx);
-                colorPaletteContainer.appendChild(btn);
-            });
-        }
-
-        function selectColorInPalette(idx) {
-            const selectedNode = state.nodes.find(n => n.id === state.selectedNodeId);
-            if (selectedNode) {
-                selectedNode.colorIdx = idx;
-                saveState();
-                render();
-            }
-            updateColorPaletteUI(idx);
-        }
-
-        function updateColorPaletteUI(selectedIdx) {
-            document.querySelectorAll('.color-btn').forEach((b, i) => {
-                if (i === selectedIdx) b.classList.add('scale-110', 'ring-2', 'ring-indigo-500', 'shadow-md');
-                else b.classList.remove('scale-110', 'ring-2', 'ring-indigo-500', 'shadow-md');
-            });
-        }
-
-        function createNode(type, x, y, text = '', colorIdx = 0) {
-            const defaultTexts = { oval: '開始 / 終了', rectangle: '処理手順', diamond: '条件分岐', parallelogram: 'データ入出力', group: 'グループ枠', note: 'メモテキスト' };
-            const isGroup = type === 'group';
-            const node = {
-                id: generateId(), type: type, x: x, y: y,
-                width: isGroup ? 320 : (type === 'diamond' ? 120 : (type === 'note' ? 130 : 140)),
-                height: isGroup ? 240 : (type === 'diamond' ? 80 : 60),
-                text: text || defaultTexts[type] || 'ノード', colorIdx: colorIdx
-            };
-            state.nodes.push(node);
-            return node;
-        }
-
-        /* --- 自動整列 (トポロジカルソート＆階層化レイアウト) --- */
-        function autoLayout() {
-            const processNodes = state.nodes.filter(n => n.type !== 'group');
-            if (processNodes.length === 0) return;
-
-            const inDegree = {};
-            const adj = {};
-            processNodes.forEach(n => { inDegree[n.id] = 0; adj[n.id] = []; });
-
-            state.connections.forEach(c => {
-                if (inDegree[c.to] !== undefined && adj[c.from] !== undefined) {
-                    adj[c.from].push(c.to);
-                    inDegree[c.to]++;
-                }
-            });
-
-            const level = {};
-            let queue = processNodes.filter(n => inDegree[n.id] === 0).map(n => n.id);
-            queue.forEach(id => level[id] = 0);
-
-            if (queue.length === 0 && processNodes.length > 0) {
-                queue = [processNodes[0].id];
-                level[processNodes[0].id] = 0;
-            }
-
-            const visited = new Set();
-            while (queue.length > 0) {
-                const curr = queue.shift();
-                visited.add(curr);
-                const currLevel = level[curr] || 0;
-
-                (adj[curr] || []).forEach(nextId => {
-                    level[nextId] = Math.max(level[nextId] || 0, currLevel + 1);
-                    if (!visited.has(nextId) && !queue.includes(nextId)) {
-                        queue.push(nextId);
-                    }
-                });
-            }
-
-            processNodes.forEach(n => { if (level[n.id] === undefined) level[n.id] = 0; });
-
-            const levelsMap = {};
-            processNodes.forEach(n => {
-                const l = level[n.id];
-                if (!levelsMap[l]) levelsMap[l] = [];
-                levelsMap[l].push(n);
-            });
-
-            const startX = 100;
-            const startY = 80;
-            const levelGapY = 130;
-            const nodeGapX = 180;
-
-            Object.keys(levelsMap).forEach(l => {
-                const groupNodes = levelsMap[l];
-                const totalWidth = (groupNodes.length - 1) * nodeGapX;
-                const rowStartX = startX - totalWidth / 2 + 100;
-
-                groupNodes.forEach((node, idx) => {
-                    node.x = rowStartX + idx * nodeGapX;
-                    node.y = startY + parseInt(l) * levelGapY;
-                });
-            });
-
-            saveState();
-            render();
-        }
-
-        document.getElementById('btn-auto-layout').onclick = autoLayout;
-
-        function render() {
-            nodesContainer.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.scale})`;
-            svgGroup.setAttribute('transform', `translate(${state.pan.x}, ${state.pan.y}) scale(${state.scale})`);
-            zoomValueEl.textContent = `${Math.round(state.scale * 100)}%`;
-            updateDeleteButtonState();
-            updateBottomBar();
-            renderNodes();
-            renderConnections();
-            lucide.createIcons();
-        }
-
-        function updateDeleteButtonState() {
-            btnDeleteSelected.disabled = !(state.selectedNodeId || state.selectedConnectionId);
-        }
-
-        function updateBottomBar() {
-            const selectedNode = state.nodes.find(n => n.id === state.selectedNodeId);
-            if (selectedNode) {
-                bottomEditBar.classList.remove('translate-y-full');
-                if (document.activeElement !== bottomNodeInput) {
-                    bottomNodeInput.value = selectedNode.text;
-                }
-                bottomNodeType.value = selectedNode.type;
-                updateColorPaletteUI(selectedNode.colorIdx || 0);
-            } else {
-                bottomEditBar.classList.add('translate-y-full');
-            }
-        }
-
-        bottomNodeInput.addEventListener('input', (e) => {
-            const selectedNode = state.nodes.find(n => n.id === state.selectedNodeId);
-            if (selectedNode) {
-                selectedNode.text = e.target.value;
-                const nodeEl = nodesContainer.querySelector(`[data-node-id="${selectedNode.id}"] .node-text`);
-                if (nodeEl) nodeEl.textContent = e.target.value;
-            }
+      if (data) {
+        card.querySelector('.ex-name').value = data.exercise || '';
+        card.querySelector('.ex-primary').value = data.primaryTarget || '';
+        card.querySelector('.ex-memo').value = data.memo || '';
+        
+        const cbs = card.querySelectorAll('.ex-secondary-group input[type="checkbox"]');
+        cbs.forEach(cb => {
+          cb.checked = data.secondaryTargets ? data.secondaryTargets.includes(cb.value) : false;
         });
 
-        bottomNodeInput.addEventListener('change', () => {
-            saveState();
-        });
+        if (data.sets && data.sets.length > 0) {
+          data.sets.forEach(s => addSetRowToCard(cardId, s.weight, s.reps));
+        } else {
+          addSetRowToCard(cardId); addSetRowToCard(cardId); addSetRowToCard(cardId);
+        }
+      } else {
+        addSetRowToCard(cardId); addSetRowToCard(cardId); addSetRowToCard(cardId);
+      }
+      
+      updateCardTotalVolumes();
+      updateCardNumbers();
+    }
 
-        bottomNodeType.addEventListener('change', (e) => {
-            const selectedNode = state.nodes.find(n => n.id === state.selectedNodeId);
-            if (selectedNode) {
-                const newType = e.target.value;
-                selectedNode.type = newType;
-                selectedNode.width = newType === 'group' ? 320 : (newType === 'diamond' ? 120 : (newType === 'note' ? 130 : 140));
-                selectedNode.height = newType === 'group' ? 240 : (newType === 'diamond' ? 80 : 60);
-                saveState();
-                render();
-            }
-        });
+    // --- 種目カードの並び替え機能 ---
+    function moveExerciseCard(cardId, direction) {
+      const card = document.getElementById(cardId);
+      if (!card) return;
 
-        function renderNodes() {
-            nodesContainer.innerHTML = '';
-            // グループ枠を背面、通常のノードを前面に描画
-            const sortedNodes = [...state.nodes].sort((a, b) => (a.type === 'group' ? -1 : 1) - (b.type === 'group' ? -1 : 1));
+      if (direction === 'up') {
+        const prevCard = card.previousElementSibling;
+        if (prevCard) {
+          card.parentNode.insertBefore(card, prevCard);
+        }
+      } else if (direction === 'down') {
+        const nextCard = card.nextElementSibling;
+        if (nextCard) {
+          card.parentNode.insertBefore(nextCard, card);
+        }
+      }
+      updateCardNumbers();
+      saveDraft();
+    }
 
-            sortedNodes.forEach(node => {
-                const isSelected = state.selectedNodeId === node.id;
-                const isDraggingThis = isDraggingNode && draggedNode?.id === node.id;
-                const isGroup = node.type === 'group';
+    function removeExerciseCard(cardId) {
+      const container = document.getElementById('exercises-container');
+      const card = document.getElementById(cardId);
+      if (card) {
+        container.removeChild(card);
+        updateCardNumbers();
+        saveDraft();
+      }
+    }
 
-                const el = document.createElement('div');
-                el.dataset.nodeId = node.id;
-                el.className = `node-element absolute pointer-events-auto cursor-grab active:cursor-grabbing flex items-center justify-center text-center p-2 transition-all select-none ${
-                    isDraggingThis ? 'is-dragging' : ''
-                } ${isSelected ? 'is-selected' : (isGroup ? 'border-2 border-dashed' : 'shadow-md hover:shadow-lg')}`;
+    function updateCardNumbers() {
+      const cards = document.querySelectorAll('#exercises-container .exercise-card');
+      cards.forEach((card, idx) => {
+        const titleEl = card.querySelector('.card-title-text');
+        if (titleEl) {
+          titleEl.textContent = `種目 #${idx + 1}`;
+        }
+      });
+    }
 
-                el.style.left = `${node.x}px`;
-                el.style.top = `${node.y}px`;
-                el.style.width = `${node.width}px`;
-                el.style.height = `${node.height}px`;
-                el.style.zIndex = isGroup ? '5' : (isSelected ? '20' : '10');
-                el.style.touchAction = 'none';
+    function addSetRowToCard(cardId, weight = '', reps = '') {
+      const card = document.getElementById(cardId);
+      if (!card) return;
+      const setsContainer = card.querySelector('.sets-container');
+      const div = document.createElement('div');
+      div.className = 'set-row';
+      div.innerHTML = `
+        <span>Set ${setsContainer.children.length + 1}</span>
+        <input type="number" class="set-weight" placeholder="重量(kg)" value="${weight}">
+        <input type="number" class="set-reps" placeholder="回数" value="${reps}" onchange="if(this.value) onRepsInputComplete()">
+      `;
+      setsContainer.appendChild(div);
+      updateCardTotalVolumes();
+    }
 
-                const color = COLORS[node.colorIdx] || COLORS[0];
-                el.style.backgroundColor = isGroup ? 'rgba(241, 245, 249, 0.4)' : color.bg;
-                el.style.borderColor = color.border;
-                el.style.color = color.text;
-                el.style.borderWidth = '2px';
+    function removeSetRowFromCard(cardId) {
+      const card = document.getElementById(cardId);
+      if (!card) return;
+      const setsContainer = card.querySelector('.sets-container');
+      if (setsContainer.children.length > 1) {
+        setsContainer.removeChild(setsContainer.lastChild);
+        updateCardTotalVolumes();
+      }
+    }
 
-                if (node.type === 'oval') el.style.borderRadius = '9999px';
-                else if (node.type === 'diamond') { el.style.borderRadius = '8px'; el.style.transform = 'rotate(45deg)'; }
-                else if (node.type === 'parallelogram') { el.classList.add('shape-parallelogram'); el.style.borderRadius = '6px'; }
-                else if (node.type === 'note') { el.style.borderRadius = '4px'; el.style.borderStyle = 'dashed'; }
-                else if (isGroup) { el.style.borderRadius = '16px'; el.style.borderStyle = 'dashed'; el.classList.remove('items-center', 'justify-center'); }
-                else el.style.borderRadius = '12px';
+    // --- 部位別種目選択機能 ---
+    function openCategoryModal(cardId) {
+      activeCardIdForCategory = cardId;
+      const tabsEl = document.getElementById('categoryTabs');
+      tabsEl.innerHTML = '';
+      
+      const categories = Object.keys(presetExercises);
+      currentActiveCategory = categories[0];
 
-                const textEl = document.createElement('div');
-                textEl.className = `node-text font-medium text-xs sm:text-sm select-none break-words px-1 line-clamp-3 leading-snug pointer-events-none ${
-                    isGroup ? 'absolute top-2 left-3 text-slate-500 font-bold uppercase tracking-wider text-xs' : 'w-full'
-                }`;
-                if (node.type === 'diamond') textEl.style.transform = 'rotate(-45deg)';
-                else if (node.type === 'parallelogram') textEl.classList.add('shape-parallelogram-content');
-                textEl.textContent = node.text;
-                el.appendChild(textEl);
+      categories.forEach((cat, idx) => {
+        const btn = document.createElement('button');
+        btn.textContent = cat;
+        btn.className = idx === 0 ? 'active' : '';
+        btn.onclick = () => {
+          document.querySelectorAll('#categoryTabs button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentActiveCategory = cat;
+          renderCategoryExercises(cat);
+        };
+        tabsEl.appendChild(btn);
+      });
 
-                if (!isGroup) {
-                    const handle = document.createElement('div');
-                    handle.className = 'absolute -right-2 top-1/2 -translate-y-1/2 w-6 h-6 bg-white border-2 border-indigo-600 rounded-full cursor-crosshair shadow-sm flex items-center justify-center z-30 connect-handle pointer-events-auto';
-                    if (node.type === 'diamond') handle.style.transform = 'rotate(-45deg) translate(10px, -10px)';
-                    handle.dataset.nodeId = node.id;
-                    el.appendChild(handle);
-                }
+      renderCategoryExercises(categories[0]);
+      document.getElementById('categoryModal').style.display = 'flex';
+    }
 
-                setupNodeEvents(el, node);
-                nodesContainer.appendChild(el);
-            });
+    function getDeletedCategoryExercises() {
+      return JSON.parse(localStorage.getItem('deleted_category_exercises') || '[]');
+    }
+
+    function deleteCategoryExercise(exName) {
+      if (confirm(`部位選択リストから「${exName}」を削除しますか？`)) {
+        const deleted = getDeletedCategoryExercises();
+        if (!deleted.includes(exName)) {
+          deleted.push(exName);
+          localStorage.setItem('deleted_category_exercises', JSON.stringify(deleted));
+        }
+        renderCategoryExercises(currentActiveCategory);
+      }
+    }
+
+    function renderCategoryExercises(category) {
+      const listEl = document.getElementById('categoryExerciseList');
+      listEl.innerHTML = '';
+      
+      const defaultItems = presetExercises[category] || [];
+      const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
+      const savedCategoryExercises = records
+        .filter(r => r.primaryTarget === category && r.exercise)
+        .map(r => r.exercise.trim());
+
+      const deletedItems = getDeletedCategoryExercises();
+      const combinedExercises = [...new Set([...defaultItems, ...savedCategoryExercises])]
+        .filter(exName => !deletedItems.includes(exName));
+
+      if (combinedExercises.length === 0) {
+        listEl.innerHTML = '<p style="text-align:center; color:var(--text-muted); font-size:0.85rem;">表示できる種目がありません。</p>';
+        return;
+      }
+      
+      combinedExercises.forEach(exName => {
+        const row = document.createElement('div');
+        row.className = 'category-exercise-row';
+
+        const selectBtn = document.createElement('button');
+        selectBtn.textContent = exName;
+        selectBtn.className = 'secondary';
+        selectBtn.onclick = () => selectCategoryExercise(exName, category);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = '削除';
+        deleteBtn.className = 'danger sm';
+        deleteBtn.style.flex = '0 0 auto';
+        deleteBtn.onclick = () => deleteCategoryExercise(exName);
+
+        row.appendChild(selectBtn);
+        row.appendChild(deleteBtn);
+        listEl.appendChild(row);
+      });
+    }
+
+    function selectCategoryExercise(exName, category) {
+      if (activeCardIdForCategory) {
+        const card = document.getElementById(activeCardIdForCategory);
+        if (card) {
+          card.querySelector('.ex-name').value = exName;
+          card.querySelector('.ex-primary').value = category;
+          saveDraft();
+        }
+      }
+      closeCategoryModal();
+    }
+
+    function closeCategoryModal() {
+      document.getElementById('categoryModal').style.display = 'none';
+    }
+
+    // --- 過去記録（時系列）表示機能 ---
+    function openHistoryModal(cardId) {
+      const card = document.getElementById(cardId);
+      if (!card) return;
+      const exName = card.querySelector('.ex-name').value.trim();
+      
+      if (!exName) {
+        alert('先に種目名を入力してください。');
+        return;
+      }
+
+      activeCardIdForHistory = cardId;
+      currentHistoryExercise = exName;
+      document.getElementById('historyModalTitle').textContent = `「${exName}」の過去記録`;
+      renderHistoryList();
+      document.getElementById('historyModal').style.display = 'flex';
+    }
+
+    function renderHistoryList() {
+      const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
+      let matched = records.filter(r => r.exercise.toLowerCase() === currentHistoryExercise.toLowerCase());
+
+      matched.sort((a, b) => isHistoryAsc ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));
+
+      const listEl = document.getElementById('historyList');
+      if (matched.length === 0) {
+        listEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">過去の記録はありません。</p>';
+        return;
+      }
+
+      listEl.innerHTML = matched.map(r => {
+        const setRows = r.sets.map((s, idx) => `
+          <tr>
+            <td>Set ${idx + 1}</td>
+            <td>${s.weight} kg</td>
+            <td>${s.reps} 回</td>
+          </tr>
+        `).join('');
+
+        return `
+          <div class="history-item">
+            <div class="history-item-header">
+              <strong>📅 ${r.date}</strong>
+              <button class="secondary sm" onclick='loadRecordToCard(${JSON.stringify(r).replace(/'/g, "&apos;")})'>この日の記録を読み込む</button>
+            </div>
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>セット</th>
+                  <th>重量</th>
+                  <th>回数</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${setRows}
+              </tbody>
+            </table>
+            ${r.totalVolume ? `<div style="font-weight:600; color:var(--primary); font-size:0.8rem;">合計挙上重量: ${r.totalVolume.toLocaleString()} kg</div>` : ''}
+            ${r.memo ? `<div style="color:var(--text-muted); font-size:0.8rem; margin-top:2px;">メモ: ${r.memo}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function loadRecordToCard(record) {
+      if (!activeCardIdForHistory) return;
+      const card = document.getElementById(activeCardIdForHistory);
+      if (!card) return;
+
+      card.querySelector('.ex-name').value = record.exercise || '';
+      card.querySelector('.ex-primary').value = record.primaryTarget || '';
+      card.querySelector('.ex-memo').value = record.memo || '';
+
+      const cbs = card.querySelectorAll('.ex-secondary-group input[type="checkbox"]');
+      cbs.forEach(cb => {
+        cb.checked = record.secondaryTargets ? record.secondaryTargets.includes(cb.value) : false;
+      });
+
+      const setsContainer = card.querySelector('.sets-container');
+      setsContainer.innerHTML = '';
+
+      if (record.sets && record.sets.length > 0) {
+        record.sets.forEach(s => addSetRowToCard(activeCardIdForHistory, s.weight, s.reps));
+      } else {
+        addSetRowToCard(activeCardIdForHistory);
+      }
+
+      saveDraft();
+      closeHistoryModal();
+    }
+
+    function toggleHistorySort() {
+      isHistoryAsc = !isHistoryAsc;
+      renderHistoryList();
+    }
+
+    function closeHistoryModal() {
+      document.getElementById('historyModal').style.display = 'none';
+    }
+
+    // --- 保存・読み込み処理 ---
+    function loadDayRecords() {
+      const selectedDate = document.getElementById('workout-date').value;
+      const container = document.getElementById('exercises-container');
+      container.innerHTML = '';
+
+      const drafts = JSON.parse(localStorage.getItem('workout_drafts') || '{}');
+      if (drafts[selectedDate] && drafts[selectedDate].length > 0) {
+        drafts[selectedDate].forEach(r => addExerciseCard(r));
+        return;
+      }
+
+      const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
+      const dayRecords = records.filter(r => r.date === selectedDate);
+      
+      if (dayRecords.length > 0) {
+        dayRecords.forEach(r => addExerciseCard(r));
+      } else {
+        addExerciseCard();
+      }
+    }
+
+    function saveAllRecords() {
+      const date = document.getElementById('workout-date').value;
+      const cards = document.querySelectorAll('#exercises-container .exercise-card');
+      const dailyElapsedTime = document.getElementById('daily-elapsed-time').value.trim();
+      
+      saveDailyElapsedTime();
+
+      let newDayRecords = [];
+
+      for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
+        const exercise = card.querySelector('.ex-name').value.trim();
+        const primaryTarget = card.querySelector('.ex-primary').value;
+        const memo = card.querySelector('.ex-memo').value.trim();
+
+        const secondaryCheckBoxes = card.querySelectorAll('.ex-secondary-group input[type="checkbox"]:checked');
+        const secondaryTargets = Array.from(secondaryCheckBoxes).map(cb => cb.value);
+
+        if (!exercise && cards.length > 1) continue;
+        if (!exercise) { alert(`種目 #${i + 1} の種目名を入力してください`); return; }
+        if (!primaryTarget) { alert(`種目 #${i + 1} の主部位を選択してください`); return; }
+
+        const weightInputs = card.querySelectorAll('.set-weight');
+        const repsInputs = card.querySelectorAll('.set-reps');
+        
+        let setsData = [];
+        let totalVolume = 0;
+
+        for (let j = 0; j < weightInputs.length; j++) {
+          const w = parseFloat(weightInputs[j].value) || 0;
+          const r = parseInt(repsInputs[j].value) || 0;
+          if (w > 0 || r > 0) {
+            setsData.push({ weight: w, reps: r });
+            totalVolume += w * r;
+          }
         }
 
-        function renderConnections() {
-            svgGroup.innerHTML = '';
-            state.connections.forEach(conn => {
-                const fromNode = state.nodes.find(n => n.id === conn.from);
-                const toNode = state.nodes.find(n => n.id === conn.to);
-                if (!fromNode || !toNode) return;
-
-                const isSelected = state.selectedConnectionId === conn.id;
-                const start = { x: fromNode.x + fromNode.width / 2, y: fromNode.y + fromNode.height / 2 };
-                const end = { x: toNode.x + toNode.width / 2, y: toNode.y + toNode.height / 2 };
-                const controlX = start.x + (end.x - start.x) / 2;
-
-                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                path.setAttribute('d', `M ${start.x} ${start.y} C ${controlX} ${start.y}, ${controlX} ${end.y}, ${end.x} ${end.y}`);
-                path.setAttribute('fill', 'none');
-                path.setAttribute('stroke', isSelected ? '#4f46e5' : '#64748b');
-                path.setAttribute('stroke-width', isSelected ? '5' : '2.5');
-                path.setAttribute('marker-end', isSelected ? 'url(#arrow-selected)' : 'url(#arrow)');
-                path.classList.add('pointer-events-auto', 'cursor-pointer');
-
-                path.onclick = (e) => {
-                    e.stopPropagation();
-                    state.selectedConnectionId = conn.id;
-                    state.selectedNodeId = null;
-                    render();
-                };
-                svgGroup.appendChild(path);
-            });
+        if (setsData.length === 0) {
+          alert(`種目 #${i + 1} のセット重量・回数を入力してください`);
+          return;
         }
 
-        function updateTempConnection(clientX, clientY) {
-            if (!state.isConnecting || !state.connectingStartNodeId) return;
-            const startNode = state.nodes.find(n => n.id === state.connectingStartNodeId);
-            if (!startNode) return;
+        newDayRecords.push({
+          id: Date.now().toString() + "_" + i,
+          date,
+          exercise,
+          primaryTarget,
+          secondaryTargets,
+          sets: setsData,
+          memo,
+          totalVolume,
+          elapsedTime: dailyElapsedTime
+        });
+      }
 
-            const startX = startNode.x + startNode.width / 2;
-            const startY = startNode.y + startNode.height / 2;
-            const rect = container.getBoundingClientRect();
-            const endX = (clientX - rect.left - state.pan.x) / state.scale;
-            const endY = (clientY - rect.top - state.pan.y) / state.scale;
-            const controlX = startX + (endX - startX) / 2;
+      let records = JSON.parse(localStorage.getItem('workout_records') || '[]');
+      records = records.filter(r => r.date !== date);
+      records.unshift(...newDayRecords);
 
-            tempConnection.setAttribute('d', `M ${startX} ${startY} C ${controlX} ${startX > endX ? startY : startY}, ${controlX} ${endY}, ${endX} ${endY}`);
-            tempConnection.setAttribute('transform', `translate(${state.pan.x}, ${state.pan.y}) scale(${state.scale})`);
-            tempConnection.classList.remove('hidden');
+      localStorage.setItem('workout_records', JSON.stringify(records));
+      clearDraft(date);
+      alert('本日のメニューと記録を保存しました');
+      updateExerciseDatalist();
+      updateVolumeChart();
+    }
+
+    function updateExerciseDatalist() {
+      const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
+      const exercises = [...new Set(records.map(r => r.exercise))];
+      
+      const datalistEl = document.getElementById('exercise-history');
+      datalistEl.innerHTML = exercises.map(ex => `<option value="${ex}">`).join('');
+
+      populateChartExerciseSelect(exercises);
+    }
+
+    function populateChartExerciseSelect(exercises) {
+      const select = document.getElementById('chart-exercise-select');
+      const currentValue = select.value;
+      
+      if (exercises.length === 0) {
+        select.innerHTML = '<option value="">記録のある種目が表示されます</option>';
+        return;
+      }
+
+      select.innerHTML = exercises.map(ex => `<option value="${ex}">${ex}</option>`).join('');
+      if (currentValue && exercises.includes(currentValue)) {
+        select.value = currentValue;
+      }
+    }
+
+    function updateVolumeChart() {
+      const selectedExercise = document.getElementById('chart-exercise-select').value;
+      const ctx = document.getElementById('volumeChart').getContext('2d');
+
+      if (!selectedExercise) {
+        if (volumeChartInstance) volumeChartInstance.destroy();
+        return;
+      }
+
+      const records = JSON.parse(localStorage.getItem('workout_records') || '[]');
+      
+      const exerciseRecords = records
+        .filter(r => r.exercise.toLowerCase() === selectedExercise.toLowerCase())
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const aggregated = {};
+      exerciseRecords.forEach(r => {
+        aggregated[r.date] = (aggregated[r.date] || 0) + (r.totalVolume || 0);
+      });
+
+      const labels = Object.keys(aggregated);
+      const data = Object.values(aggregated);
+
+      if (volumeChartInstance) volumeChartInstance.destroy();
+
+      volumeChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: `${selectedExercise} ボリューム (kg)`,
+            data: data,
+            borderColor: '#2563eb',
+            backgroundColor: 'rgba(37, 99, 235, 0.1)',
+            borderWidth: 2,
+            tension: 0.2,
+            fill: true,
+            pointRadius: 4,
+            pointBackgroundColor: '#2563eb'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero: true }
+          }
         }
+      });
+    }
 
-        let isDraggingNode = false;
-        let draggedNode = null;
-        let draggedElement = null;
-        let dragOffset = { x: 0, y: 0 };
-        let touchStartPos = { x: 0, y: 0 };
-        let childNodesToMove = []; // グループ移動時の内包ノード群
-        const DRAG_THRESHOLD = 3;
+    onDateChange();
 
-        function setupNodeEvents(el, node) {
-            const handleInteractStart = (clientX, clientY, target) => {
-                touchStartPos = { x: clientX, y: clientY };
+    function exportData() {
+      const records = localStorage.getItem('workout_records') || '[]';
+      const weights = localStorage.getItem('daily_weights') || '{}';
+      const times = localStorage.getItem('daily_elapsed_times') || '{}';
+      const deletedCategoryExercises = localStorage.getItem('deleted_category_exercises') || '[]';
+      
+      const backupData = {
+        workout_records: JSON.parse(records),
+        daily_weights: JSON.parse(weights),
+        daily_elapsed_times: JSON.parse(times),
+        deleted_category_exercises: JSON.parse(deletedCategoryExercises)
+      };
 
-                if (target.classList.contains('connect-handle')) {
-                    state.isConnecting = true;
-                    state.connectingStartNodeId = node.id;
-                    document.querySelectorAll('.node-element').forEach(n => n.style.pointerEvents = 'none');
-                    updateTempConnection(clientX, clientY);
-                    return;
-                }
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `workout_backup_${new Date().toISOString().substring(0, 10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
 
-                document.querySelectorAll('.node-element.is-selected').forEach(n => n.classList.remove('is-selected'));
-                el.classList.add('is-selected');
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
 
-                state.selectedNodeId = node.id;
-                state.selectedConnectionId = null;
-                updateDeleteButtonState();
-                updateBottomBar();
-
-                draggedNode = node;
-                draggedElement = el;
-                dragOffset.x = (clientX - state.pan.x) / state.scale - node.x;
-                dragOffset.y = (clientY - state.pan.y) / state.scale - node.y;
-
-                // グループ枠内にあるノードを検知して一緒に連動移動
-                childNodesToMove = [];
-                if (node.type === 'group') {
-                    state.nodes.forEach(child => {
-                        if (child.id !== node.id &&
-                            child.x >= node.x && child.x + child.width <= node.x + node.width &&
-                            child.y >= node.y && child.y + child.height <= node.y + node.height) {
-                            childNodesToMove.push({
-                                node: child,
-                                offsetX: child.x - node.x,
-                                offsetY: child.y - node.y
-                            });
-                        }
-                    });
-                }
-            };
-
-            el.addEventListener('mousedown', (e) => {
-                if (e.button !== 0) return;
-                e.stopPropagation();
-                handleInteractStart(e.clientX, e.clientY, e.target);
-            });
-
-            el.addEventListener('touchstart', (e) => {
-                e.stopPropagation();
-                if (e.touches.length === 1) {
-                    handleInteractStart(e.touches[0].clientX, e.touches[0].clientY, e.target);
-                }
-            }, { passive: false });
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const importedData = JSON.parse(e.target.result);
+          
+          if (importedData.workout_records) {
+            if (confirm('現在のデータを上書きして、読み込んだデータを反映しますか？')) {
+              localStorage.setItem('workout_records', JSON.stringify(importedData.workout_records));
+              if (importedData.daily_weights) localStorage.setItem('daily_weights', JSON.stringify(importedData.daily_weights));
+              if (importedData.daily_elapsed_times) localStorage.setItem('daily_elapsed_times', JSON.stringify(importedData.daily_elapsed_times));
+              if (importedData.deleted_category_exercises) localStorage.setItem('deleted_category_exercises', JSON.stringify(importedData.deleted_category_exercises));
+              alert('データの読み込みが完了しました。');
+              onDateChange();
+            }
+          } else {
+            alert('ファイル形式が正しくありません。');
+          }
+        } catch (err) {
+          alert('ファイルの読み込みに失敗しました。');
         }
-
-        let isPanning = false;
-        let panStart = { x: 0, y: 0 };
-
-        container.addEventListener('mousedown', (e) => {
-            if (e.target === container || e.target.id === 'svg-layer' || e.target.id === 'nodes-container') {
-                state.selectedNodeId = null;
-                state.selectedConnectionId = null;
-                isPanning = true;
-                panStart.x = e.clientX - state.pan.x;
-                panStart.y = e.clientY - state.pan.y;
-                render();
-            }
-        });
-
-        const handlePointerMove = (clientX, clientY) => {
-            if (state.isConnecting) {
-                updateTempConnection(clientX, clientY);
-            } else if (draggedNode && draggedElement) {
-                const dist = Math.hypot(clientX - touchStartPos.x, clientY - touchStartPos.y);
-                if (dist > DRAG_THRESHOLD && !isDraggingNode) {
-                    isDraggingNode = true;
-                    draggedElement.classList.add('is-dragging');
-                }
-                if (isDraggingNode) {
-                    const newX = (clientX - state.pan.x) / state.scale - dragOffset.x;
-                    const newY = (clientY - state.pan.y) / state.scale - dragOffset.y;
-
-                    draggedNode.x = newX;
-                    draggedNode.y = newY;
-                    draggedElement.style.left = `${newX}px`;
-                    draggedElement.style.top = `${newY}px`;
-
-                    // グループ内のノードを連動移動
-                    childNodesToMove.forEach(item => {
-                        item.node.x = newX + item.offsetX;
-                        item.node.y = newY + item.offsetY;
-                        const childEl = nodesContainer.querySelector(`[data-node-id="${item.node.id}"]`);
-                        if (childEl) {
-                            childEl.style.left = `${item.node.x}px`;
-                            childEl.style.top = `${item.node.y}px`;
-                        }
-                    });
-
-                    renderConnections();
-                }
-            } else if (isPanning) {
-                state.pan.x = clientX - panStart.x;
-                state.pan.y = clientY - panStart.y;
-                nodesContainer.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.scale})`;
-                svgGroup.setAttribute('transform', `translate(${state.pan.x}, ${state.pan.y}) scale(${state.scale})`);
-            }
-        };
-
-        window.addEventListener('mousemove', (e) => {
-            handlePointerMove(e.clientX, e.clientY);
-        });
-
-        const handlePointerUp = (clientX, clientY) => {
-            if (isDraggingNode) {
-                isDraggingNode = false;
-                if (draggedElement) draggedElement.classList.remove('is-dragging');
-                draggedNode = null;
-                draggedElement = null;
-                childNodesToMove = [];
-                saveState();
-            }
-            draggedNode = null;
-            draggedElement = null;
-            childNodesToMove = [];
-            if (isPanning) isPanning = false;
-
-            if (state.isConnecting) {
-                tempConnection.classList.add('hidden');
-                document.querySelectorAll('.node-element').forEach(n => n.style.pointerEvents = 'auto');
-
-                const targetEl = document.elementFromPoint(clientX, clientY);
-                const targetNodeEl = targetEl?.closest('[data-node-id]');
-
-                if (targetNodeEl) {
-                    const targetNodeId = targetNodeEl.dataset.nodeId;
-                    if (targetNodeId && targetNodeId !== state.connectingStartNodeId) {
-                        const exists = state.connections.some(c => c.from === state.connectingStartNodeId && c.to === targetNodeId);
-                        if (!exists) {
-                            state.connections.push({ id: generateId(), from: state.connectingStartNodeId, to: targetNodeId });
-                            saveState();
-                        }
-                    }
-                }
-                state.isConnecting = false;
-                state.connectingStartNodeId = null;
-                render();
-            }
-        };
-
-        window.addEventListener('mouseup', (e) => {
-            handlePointerUp(e.clientX, e.clientY);
-        });
-
-        container.addEventListener('touchstart', (e) => {
-            if (e.touches.length === 1) {
-                const touch = e.touches[0];
-                const now = Date.now();
-                const timeDiff = now - lastTapTime;
-
-                if (timeDiff < 300 && timeDiff > 0) {
-                    isDoubleTapDragging = true;
-                    isPanning = false;
-                    doubleTapStartY = touch.clientY;
-                    startScaleForDoubleTap = state.scale;
-
-                    const rect = container.getBoundingClientRect();
-                    zoomCenter = {
-                        x: touch.clientX - rect.left,
-                        y: touch.clientY - rect.top
-                    };
-                    
-                    if (e.cancelable) e.preventDefault();
-                    lastTapTime = 0;
-                    return;
-                }
-                lastTapTime = now;
-
-                if (e.target === container || e.target.id === 'svg-layer') {
-                    state.selectedNodeId = null;
-                    state.selectedConnectionId = null;
-                    isPanning = true;
-                    panStart.x = touch.clientX - state.pan.x;
-                    panStart.y = touch.clientY - state.pan.y;
-                    render();
-                }
-            }
-        }, { passive: false });
-
-        window.addEventListener('touchmove', (e) => {
-            if (e.touches.length === 1) {
-                const touch = e.touches[0];
-
-                if (isDoubleTapDragging) {
-                    if (e.cancelable) e.preventDefault();
-                    const deltaY = touch.clientY - doubleTapStartY;
-                    const zoomFactor = Math.pow(1.008, deltaY); 
-                    const newScale = Math.min(Math.max(0.3, startScaleForDoubleTap * zoomFactor), 2.5);
-
-                    state.pan.x = zoomCenter.x - (zoomCenter.x - state.pan.x) * (newScale / state.scale);
-                    state.pan.y = zoomCenter.y - (zoomCenter.y - state.pan.y) * (newScale / state.scale);
-                    state.scale = newScale;
-
-                    render();
-                    return;
-                }
-
-                if (state.isConnecting || isDraggingNode || isPanning) {
-                    if (e.cancelable) e.preventDefault();
-                }
-                handlePointerMove(touch.clientX, touch.clientY);
-            }
-        }, { passive: false });
-
-        window.addEventListener('touchend', (e) => {
-            if (isDoubleTapDragging) {
-                isDoubleTapDragging = false;
-                return;
-            }
-
-            const touch = e.changedTouches[0];
-            if (touch) {
-                handlePointerUp(touch.clientX, touch.clientY);
-            } else {
-                if (isDraggingNode) { isDraggingNode = false; draggedNode = null; draggedElement = null; saveState(); }
-                if (isPanning) isPanning = false;
-            }
-        });
-
-        container.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-            const newScale = Math.min(Math.max(0.3, state.scale * zoomFactor), 2.5);
-            const rect = container.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-            state.pan.x = mouseX - (mouseX - state.pan.x) * (newScale / state.scale);
-            state.pan.y = mouseY - (mouseY - state.pan.y) * (newScale / state.scale);
-            state.scale = newScale;
-            render();
-        }, { passive: false });
-
-        function deleteSelected() {
-            if (state.selectedNodeId) {
-                const targetId = state.selectedNodeId;
-                state.nodes = state.nodes.filter(n => n.id !== targetId);
-                state.connections = state.connections.filter(c => c.from !== targetId && c.to !== targetId);
-                state.selectedNodeId = null;
-                saveState(); render();
-            } else if (state.selectedConnectionId) {
-                state.connections = state.connections.filter(c => c.id !== state.selectedConnectionId);
-                state.selectedConnectionId = null;
-                saveState(); render();
-            }
-        }
-
-        btnDeleteSelected.onclick = () => deleteSelected();
-
-        window.addEventListener('keydown', (e) => {
-            if ((e.key === 'Delete' || e.key === 'Backspace') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'SELECT') {
-                deleteSelected();
-            }
-        });
-
-        document.getElementById('btn-zoom-in').onclick = () => { state.scale = Math.min(2.5, state.scale * 1.2); render(); };
-        document.getElementById('btn-zoom-out').onclick = () => { state.scale = Math.max(0.3, state.scale / 1.2); render(); };
-        document.getElementById('btn-zoom-reset').onclick = () => { state.scale = 1; state.pan = { x: 0, y: 0 }; render(); };
-
-        document.querySelectorAll('.add-node-btn').forEach(btn => {
-            btn.onclick = () => {
-                const rect = container.getBoundingClientRect();
-                const newNode = createNode(btn.dataset.type, (rect.width / 2 - state.pan.x) / state.scale - 60, (rect.height / 2 - state.pan.y) / state.scale - 30);
-                state.selectedNodeId = newNode.id; state.selectedConnectionId = null;
-                saveState(); render();
-                const palette = document.getElementById('mobile-palette');
-                if (palette) palette.classList.add('hidden', 'scale-0');
-            };
-        });
-
-        const btnToggleMobile = document.getElementById('btn-toggle-mobile-palette');
-        if (btnToggleMobile) {
-            btnToggleMobile.onclick = () => {
-                const palette = document.getElementById('mobile-palette');
-                if (palette.classList.contains('hidden')) {
-                    palette.classList.remove('hidden');
-                    setTimeout(() => palette.classList.remove('scale-0'), 10);
-                } else {
-                    palette.classList.add('scale-0');
-                    setTimeout(() => palette.classList.add('hidden'), 200);
-                }
-            };
-        }
-
-        function saveState() {
-            const currentData = JSON.stringify({ nodes: state.nodes, connections: state.connections });
-            if (state.historyIndex < 0 || state.history[state.historyIndex] !== currentData) {
-                state.history = state.history.slice(0, state.historyIndex + 1);
-                state.history.push(currentData);
-                state.historyIndex++;
-            }
-            
-            const cur = state.projects.find(p => p.id === state.currentProjectId);
-            if (cur) {
-                cur.data = { nodes: state.nodes, connections: state.connections };
-                saveProjectsToStorage();
-            }
-
-            document.getElementById('btn-undo').disabled = state.historyIndex <= 0;
-            document.getElementById('btn-redo').disabled = state.historyIndex >= state.history.length - 1;
-        }
-
-        document.getElementById('btn-undo').onclick = () => {
-            if (state.historyIndex > 0) {
-                const parsed = JSON.parse(state.history[--state.historyIndex]);
-                state.nodes = parsed.nodes; state.connections = parsed.connections;
-                state.selectedNodeId = null; state.selectedConnectionId = null;
-                render(); document.getElementById('btn-undo').disabled = state.historyIndex <= 0;
-                document.getElementById('btn-redo').disabled = false;
-            }
-        };
-
-        document.getElementById('btn-redo').onclick = () => {
-            if (state.historyIndex < state.history.length - 1) {
-                const parsed = JSON.parse(state.history[++state.historyIndex]);
-                state.nodes = parsed.nodes; state.connections = parsed.connections;
-                state.selectedNodeId = null; state.selectedConnectionId = null;
-                render(); document.getElementById('btn-redo').disabled = state.historyIndex >= state.history.length - 1;
-                document.getElementById('btn-undo').disabled = false;
-            }
-        };
-
-        document.getElementById('btn-clear-all').onclick = () => {
-            if (confirm('現在のプロジェクトのすべてのノードと接続を消去しますか？')) {
-                state.nodes = []; state.connections = [];
-                state.selectedNodeId = null; state.selectedConnectionId = null;
-                saveState(); render();
-            }
-        };
-
-        document.getElementById('export-json').onclick = () => {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ nodes: state.nodes, connections: state.connections }, null, 2));
-            const a = document.createElement('a');
-            a.href = dataStr; a.download = `flowchart_${new Date().toISOString().slice(0, 10)}.json`;
-            document.body.appendChild(a); a.click(); a.remove();
-        };
-
-        document.getElementById('import-json').onchange = (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                try {
-                    const parsed = JSON.parse(event.target.result);
-                    state.nodes = parsed.nodes || []; state.connections = parsed.connections || [];
-                    state.selectedNodeId = null; state.selectedConnectionId = null;
-                    saveState(); render();
-                } catch (err) { alert('無効なJSONファイルです。'); }
-            };
-            reader.readAsText(file);
-        };
-
-        document.getElementById('export-png').onclick = () => {
-            if (state.nodes.length === 0) return;
-            const exportCanvas = document.createElement('canvas');
-            const ctx = exportCanvas.getContext('2d');
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            state.nodes.forEach(n => {
-                minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
-                maxX = Math.max(maxX, n.x + n.width); maxY = Math.max(maxY, n.y + n.height);
-            });
-            const padding = 60, width = maxX - minX + padding * 2, height = maxY - minY + padding * 2;
-            exportCanvas.width = width; exportCanvas.height = height;
-            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, width, height);
-
-            state.connections.forEach(conn => {
-                const fromNode = state.nodes.find(n => n.id === conn.from), toNode = state.nodes.find(n => n.id === conn.to);
-                if (!fromNode || !toNode) return;
-                const start = { x: fromNode.x + fromNode.width / 2 - minX + padding, y: fromNode.y + fromNode.height / 2 - minY + padding };
-                const end = { x: toNode.x + toNode.width / 2 - minX + padding, y: toNode.y + toNode.height / 2 - minY + padding };
-                ctx.beginPath(); ctx.moveTo(start.x, start.y);
-                const controlX = start.x + (end.x - start.x) / 2;
-                ctx.bezierCurveTo(controlX, start.y, controlX, end.y, end.x, end.y);
-                ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2.5; ctx.stroke();
-            });
-
-            state.nodes.forEach(node => {
-                const x = node.x - minX + padding, y = node.y - minY + padding, color = COLORS[node.colorIdx] || COLORS[0];
-                ctx.fillStyle = node.type === 'group' ? 'rgba(241, 245, 249, 0.4)' : color.bg;
-                ctx.strokeStyle = color.border; ctx.lineWidth = 2;
-                if (node.type === 'oval') { ctx.beginPath(); ctx.roundRect(x, y, node.width, node.height, 999); ctx.fill(); ctx.stroke(); }
-                else if (node.type === 'diamond') {
-                    ctx.save(); ctx.translate(x + node.width / 2, y + node.height / 2); ctx.rotate(45 * Math.PI / 180);
-                    ctx.fillRect(-node.width / 2, -node.height / 2, node.width, node.height);
-                    ctx.strokeRect(-node.width / 2, -node.height / 2, node.width, node.height); ctx.restore();
-                } else { ctx.beginPath(); ctx.roundRect(x, y, node.width, node.height, 8); ctx.fill(); ctx.stroke(); }
-                ctx.fillStyle = color.text; ctx.font = '13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText(node.text, x + node.width / 2, y + node.height / 2);
-            });
-            const link = document.createElement('a');
-            link.download = `flowchart_${new Date().toISOString().slice(0, 10)}.png`;
-            link.href = exportCanvas.toDataURL(); link.click();
-        };
-
-        function setupEventListeners() { window.addEventListener('resize', () => render()); }
-        window.onload = init;
-    </script>
+      };
+      reader.readAsText(file);
+    }
+  </script>
 </body>
 </html>
